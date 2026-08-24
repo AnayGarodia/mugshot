@@ -1,0 +1,35 @@
+{
+  "name": "mugshot-avatars",
+  "version": "0.1.0",
+  "description": "Deterministic hand-drawn doodle face avatars. Hash any string into a charming ink-sketched face (SVG).",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "grid": "tsx scripts/grid.ts",
+    "test": "tsx scripts/test.ts"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "keywords": [
+    "avatar",
+    "identicon",
+    "svg",
+    "generative",
+    "doodle",
+    "face",
+    "hand-drawn"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anaygarodia/mugshot"
+  }
+}
