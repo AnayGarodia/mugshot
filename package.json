@@ -27,5 +27,9 @@
     "doodle",
     "face",
     "hand-drawn"
-  ]
+  ],
+  "exports": {
+    ".": "./dist/index.js",
+    "./element": "./dist/element.js"
+  }
 }

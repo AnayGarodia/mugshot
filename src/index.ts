@@ -93,7 +93,22 @@ const BLUSH = "#d98973";
 
 interface Draw { d: string; fill?: string; stroke?: string; width?: number; opacity?: number }
 
+export interface FaceParts {
+  svg: string;
+  ink: string;
+  eyes: { left: Pt; right: Pt; r: number; leftOpen: boolean; rightOpen: boolean };
+}
+
 export function face(seed: string, options: FaceOptions = {}): string {
+  return build(seed, options).svg;
+}
+
+// Everything a component needs to animate a face: eye geometry + tagged pupil group.
+export function faceParts(seed: string, options: FaceOptions = {}): FaceParts {
+  return build(seed, options);
+}
+
+function build(seed: string, options: FaceOptions = {}): FaceParts {
   const size = options.size ?? 120;
   const colorOn = options.color !== false && !options.ink;
   const rpal = stream(seed, "palette");
@@ -103,6 +118,7 @@ export function face(seed: string, options: FaceOptions = {}): string {
   const bg = options.background ?? "transparent";
   const out: Draw[] = [];
   const dots: string[] = [];
+  const pupils: string[] = [];
 
   // --- head ---
   const rh = stream(seed, "head");
@@ -170,11 +186,11 @@ export function face(seed: string, options: FaceOptions = {}): string {
       out.push({ d: line(re, [x - 2.5, ey], [x + 2.5, ey + rand(re, -1, 1)]), width: 1.3 });
     } else if (kind === "ring") {
       out.push({ d: inkPath(re, circlePts(x, ey, rEye + 1.4), { close: true, wobble: 0.5 }), width: 1.2 });
-      dots.push(`<circle cx="${x.toFixed(1)}" cy="${ey.toFixed(1)}" r="0.9"/>`);
+      pupils.push(`<circle cx="${x.toFixed(1)}" cy="${ey.toFixed(1)}" r="0.9"/>`);
     } else if (kind === "sleepy") {
       out.push({ d: inkPath(re, [[x - 2.5, ey], [x, ey + 1.6], [x + 2.5, ey]], { wobble: 0.5 }), width: 1.3 });
     } else {
-      dots.push(`<circle cx="${x.toFixed(1)}" cy="${(ey + rand(re, -0.8, 0.8)).toFixed(1)}" r="${(rEye + rand(re, -0.2, 0.2)).toFixed(1)}"/>`);
+      pupils.push(`<circle cx="${x.toFixed(1)}" cy="${(ey + rand(re, -0.8, 0.8)).toFixed(1)}" r="${(rEye + rand(re, -0.2, 0.2)).toFixed(1)}"/>`);
     }
   };
   const winkSide = chance(re, 0.5);
@@ -408,7 +424,17 @@ export function face(seed: string, options: FaceOptions = {}): string {
   const hatch = hatchClip
     ? `<clipPath id="${clipId}"><path d="${hatchClip}"/></clipPath><g clip-path="url(#${clipId})" stroke="${out.find(o => o.d === hatchClip)?.stroke ?? ink}" stroke-width="1.1" fill="none">${hatchLines.map(d => `<path d="${d}"/>`).join("")}</g>`
     : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${S} ${S}" width="${size}" height="${size}">` +
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${S} ${S}" width="${size}" height="${size}">` +
     (bg !== "transparent" ? `<rect width="${S}" height="${S}" fill="${bg}"/>` : "") +
-    body + hatch + `<g fill="${ink}">${dots.join("")}</g></svg>`;
+    body + hatch +
+    `<g fill="${ink}">${dots.join("")}</g>` +
+    `<g data-mug="pupils" fill="${ink}">${pupils.join("")}</g></svg>`;
+  return {
+    svg, ink,
+    eyes: {
+      left: [lx, ey], right: [rx2, ey], r: rEye,
+      leftOpen: kind !== "sleepy" && !(kind === "wink" && winkSide),
+      rightOpen: kind !== "sleepy" && !(kind === "wink" && !winkSide),
+    },
+  };
 }

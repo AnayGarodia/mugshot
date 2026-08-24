@@ -45,6 +45,27 @@ el.innerHTML = face(user.id);
 img.src = "data:image/svg+xml;utf8," + encodeURIComponent(face(user.id));
 ```
 
+## Alive
+
+`face()` gives you a static SVG. `<mug-shot>` gives you a character:
+
+```html
+<script type="module">import "mugshot-avatars/element"</script>
+
+<mug-shot seed="ada@example.com" size="160"></mug-shot>
+```
+
+It blinks. Its pupils follow your cursor. When the user focuses an input, it
+watches them type. Leave it alone for 30s and it falls asleep (`idle` attribute,
+ms, `0` to disable). And it reacts:
+
+```js
+document.querySelector("mug-shot").react("grumpy");   // build failed
+document.querySelector("mug-shot").react("happy");    // build green
+```
+
+Attributes: `seed`, `mood`, `size`, `color`, `ink`, `idle`. All reactive.
+
 ## Why
 
 Identicons are ugly. Faces are not. Every seed gets a face with its own head shape,
