@@ -18,3 +18,13 @@ for (let i = 0; i < 200; i++) {
   assert.ok(!svg.includes("NaN"), "NaN in fuzz-" + i);
 }
 console.log("all tests pass");
+
+// crowd: determinism + sanity
+const { crowd } = await import("../src/crowd.js");
+assert.strictEqual(crowd(["a", "b", "c"]), crowd(["a", "b", "c"]));
+assert.notStrictEqual(crowd(["a", "b"]), crowd(["b", "a"]));
+for (const n of [1, 5, 11, 24]) {
+  const svg = crowd(Array.from({ length: n }, (_, i) => "p" + i));
+  assert.ok(svg.startsWith("<svg") && svg.endsWith("</svg>") && !svg.includes("NaN"), "crowd " + n);
+}
+console.log("crowd tests pass");

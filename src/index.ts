@@ -9,6 +9,7 @@ export interface FaceOptions {
   ink?: string;         // force a single stroke color (disables auto palette)
   color?: boolean;      // false = classic black ink, default true
   mood?: Mood;          // override the expression, identity stays put
+  paper?: string;       // fill the head with this color (for overlapping scenes)
 }
 
 type Rng = () => number; // [0,1)
@@ -42,6 +43,11 @@ function mulberry32(a: number): Rng {
 // never reshuffles the others.
 function stream(seed: string, feature: string): Rng {
   return mulberry32(xmur3(seed + ":" + feature)());
+}
+
+/** Deterministic per-seed random stream, for building on top of mugshot. */
+export function seededRng(seed: string, tag = ""): () => number {
+  return stream(seed, tag);
 }
 
 const pick = <T,>(r: Rng, arr: T[]): T => arr[Math.floor(r() * arr.length)];
@@ -91,11 +97,12 @@ const BLUSH = "#d98973";
 
 // ---------- face ----------
 
-interface Draw { d: string; fill?: string; stroke?: string; width?: number; opacity?: number }
+interface Draw { d: string; fill?: string; stroke?: string; width?: number; opacity?: number; tag?: string }
 
 export interface FaceParts {
   svg: string;
   ink: string;
+  accent: string;
   eyes: { left: Pt; right: Pt; r: number; leftOpen: boolean; rightOpen: boolean };
 }
 
@@ -140,7 +147,7 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
     const wobR = 1 + rand(rh, -0.05, 0.05);
     headPts.push([cx + Math.cos(a) * rx * wobR, cy + s * hh * wobR]);
   }
-  out.push({ d: inkPath(rh, headPts, { close: true, wobble: 1.4 }) });
+  out.push({ d: inkPath(rh, headPts, { close: true, wobble: 1.4 }), fill: options.paper });
 
   const edgeX = (y: number) => hw * Math.sqrt(Math.max(0, 1 - ((y - cy) / hh) ** 2));
 
@@ -286,19 +293,19 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
   const mx = xf + rand(rm, -1, 1);
   if (mk === "o") {
     const orr = m === "surprised" ? rand(rm, 2.4, 3.6) : rand(rm, 1.5, 2.8);
-    out.push({ d: inkPath(rm, circlePts(mx, my, orr), { close: true, wobble: 0.5 }), width: 1.3 });
+    out.push({ tag: "mouth", d: inkPath(rm, circlePts(mx, my, orr), { close: true, wobble: 0.5 }), width: 1.3 });
   } else if (mk === "smirk") {
-    out.push({ d: inkPath(rm, [[mx - mw, my], [mx + mw * 0.3, my + 1], [mx + mw, my - rand(rm, 1.5, 3)]], { wobble: 0.6 }) });
+    out.push({ tag: "mouth", d: inkPath(rm, [[mx - mw, my], [mx + mw * 0.3, my + 1], [mx + mw, my - rand(rm, 1.5, 3)]], { wobble: 0.6 }) });
   } else if (mk === "smile" && chance(rm, m === "happy" ? 0.35 : 0.12)) { // toothy grin
     const gw = mw * 1.1, gh = rand(rm, 3, 4.5);
-    out.push({ d: inkPath(rm, [[mx - gw, my], [mx, my + gh], [mx + gw, my]], { close: true, wobble: 0.7 }), width: 1.2 });
-    out.push({ d: line(rm, [mx - gw * 0.8, my + gh * 0.45], [mx + gw * 0.8, my + gh * 0.45], 0.4), width: 0.9 });
+    out.push({ tag: "mouth", d: inkPath(rm, [[mx - gw, my], [mx, my + gh], [mx + gw, my]], { close: true, wobble: 0.7 }), width: 1.2 });
+    out.push({ tag: "mouth", d: line(rm, [mx - gw * 0.8, my + gh * 0.45], [mx + gw * 0.8, my + gh * 0.45], 0.4), width: 0.9 });
   } else {
     const bend =
       mk === "smile" ? rand(rm, 2, 4) * (m === "happy" ? 1.3 : 1) :
       mk === "frown" ? rand(rm, -3.5, -1.5) :
       rand(rm, -0.7, 0.7);
-    out.push({ d: inkPath(rm, [[mx - mw, my], [mx, my + bend], [mx + mw, my + rand(rm, -1, 1)]], { wobble: 0.6 }) });
+    out.push({ tag: "mouth", d: inkPath(rm, [[mx - mw, my], [mx, my + bend], [mx + mw, my + rand(rm, -1, 1)]], { wobble: 0.6 }) });
   }
 
   // --- facial hair ---
@@ -417,9 +424,17 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
   // ---------- assemble ----------
   const S = 100;
   const strokeW = rand(stream(seed, "pen"), 1.4, 1.8);
-  const body = out.map(p =>
-    `<path d="${p.d}" fill="${p.fill ?? "none"}" stroke="${p.stroke ?? ink}" stroke-width="${(p.width ?? strokeW).toFixed(2)}"${p.opacity ? ` opacity="${p.opacity}"` : ""} stroke-linecap="round" stroke-linejoin="round"/>`
-  ).join("");
+  let body = "";
+  let openTag: string | undefined;
+  for (const p of out) {
+    if (p.tag !== openTag) {
+      if (openTag) body += "</g>";
+      if (p.tag) body += `<g data-mug="${p.tag}">`;
+      openTag = p.tag;
+    }
+    body += `<path d="${p.d}" fill="${p.fill ?? "none"}" stroke="${p.stroke ?? ink}" stroke-width="${(p.width ?? strokeW).toFixed(2)}"${p.opacity ? ` opacity="${p.opacity}"` : ""} stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+  if (openTag) body += "</g>";
   const clipId = "mug" + (xmur3(seed)() >>> 0).toString(36);
   const hatch = hatchClip
     ? `<clipPath id="${clipId}"><path d="${hatchClip}"/></clipPath><g clip-path="url(#${clipId})" stroke="${out.find(o => o.d === hatchClip)?.stroke ?? ink}" stroke-width="1.1" fill="none">${hatchLines.map(d => `<path d="${d}"/>`).join("")}</g>`
@@ -430,7 +445,7 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
     `<g fill="${ink}">${dots.join("")}</g>` +
     `<g data-mug="pupils" fill="${ink}">${pupils.join("")}</g></svg>`;
   return {
-    svg, ink,
+    svg, ink, accent,
     eyes: {
       left: [lx, ey], right: [rx2, ey], r: rEye,
       leftOpen: kind !== "sleepy" && !(kind === "wink" && winkSide),

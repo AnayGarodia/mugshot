@@ -12,7 +12,7 @@
   #grid svg { width: 100%; height: auto; cursor: pointer; }
 </style>
 <h1>mugshot</h1>
-<p>Living doodle avatars. It's watching your cursor right now. Stop moving for 8s and it falls asleep.</p>
+<p>Living doodle characters. This one is watching your cursor. Its lines boil like a cartoon. Type and it greets you. Ignore it for 8s and it falls asleep. Each seed has its own temperament — some startle at fast cursors, some smile when you hover, some daydream.</p>
 <div class="hero">
   <mug-shot id="mug" seed="anay" size="200" idle="8000" style="width:200px"></mug-shot>
   <div>
@@ -27,14 +27,32 @@
     <p class="hint">buttons call <code>mug.react(mood)</code> — same face, new feeling</p>
   </div>
 </div>
-<p class="hint">every face is <code>face("mug-" + i)</code> — deterministic, zero deps. click the grid to reroll.</p>
+<h2 style="margin-top:36px">crowds</h2>
+<p class="hint">whole teams, one call: <code>crowd(["ada", "gray", …])</code> — comma-separate names below</p>
+<p><input id="names" style="width:420px" value="ada, grace, alan, edsger, barbara, donald, tony, leslie, margaret, radia, whit"></p>
+<div id="crowdbox"></div>
+<h2 style="margin-top:36px">grid</h2>
+<p class="hint">every face is <code>face("mug-" + i)</code> — deterministic, zero deps. click to reroll.</p>
 <div id="grid"></div>
 <script type="module">
   import { face } from "./dist/index.js";
+  import { crowd } from "./dist/crowd.js";
   import "./dist/element.js";
   const mug = document.getElementById("mug");
   const seedEl = document.getElementById("seed");
-  seedEl.addEventListener("input", () => mug.setAttribute("seed", seedEl.value || "mugshot"));
+  let sayT;
+  seedEl.addEventListener("input", () => {
+    mug.setAttribute("seed", seedEl.value || "mugshot");
+    clearTimeout(sayT);
+    sayT = setTimeout(() => mug.say("hi, " + (seedEl.value || "stranger") + "!"), 700);
+  });
+  const names = document.getElementById("names");
+  const crowdbox = document.getElementById("crowdbox");
+  const drawCrowd = () => {
+    const list = names.value.split(",").map(s => s.trim()).filter(Boolean);
+    crowdbox.innerHTML = crowd(list, { width: Math.min(960, crowdbox.clientWidth || 960) });
+  };
+  names.addEventListener("input", drawCrowd); drawCrowd();
   document.querySelectorAll("[data-r]").forEach(b =>
     b.addEventListener("click", () => mug.react(b.dataset.r)));
   const grid = document.getElementById("grid");

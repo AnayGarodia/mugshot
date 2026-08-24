@@ -30,6 +30,7 @@
   ],
   "exports": {
     ".": "./dist/index.js",
-    "./element": "./dist/element.js"
+    "./element": "./dist/element.js",
+    "./crowd": "./dist/crowd.js"
   }
 }

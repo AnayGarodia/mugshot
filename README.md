@@ -55,16 +55,44 @@ img.src = "data:image/svg+xml;utf8," + encodeURIComponent(face(user.id));
 <mug-shot seed="ada@example.com" size="160"></mug-shot>
 ```
 
-It blinks. Its pupils follow your cursor. When the user focuses an input, it
-watches them type. Leave it alone for 30s and it falls asleep (`idle` attribute,
-ms, `0` to disable). And it reacts:
+It's not an image, it's a character:
+
+- **line boil** — strokes shimmer like hand-drawn cartoon animation
+- **it looks at things** — follows your cursor, watches the input the user is
+  typing in, glances around when bored
+- **it blinks**, and falls asleep with floating Zzz when idle
+  (`idle` attribute, ms, `0` to disable)
+- **temperament** — derived from the seed: jumpy ones startle at fast cursors
+  and double-blink, social ones smile when hovered, dreamy ones daydream more.
+  Two seeds don't just look different, they behave differently.
+- **it talks**:
 
 ```js
-document.querySelector("mug-shot").react("grumpy");   // build failed
-document.querySelector("mug-shot").react("happy");    // build green
+const mug = document.querySelector("mug-shot");
+mug.say("hi! I'm your build bot");
+mug.react("grumpy");   // build failed
+mug.react("happy");    // build green
 ```
 
 Attributes: `seed`, `mood`, `size`, `color`, `ink`, `idle`. All reactive.
+Respects `prefers-reduced-motion`.
+
+## Crowds
+
+Whole-body doodle people, standing together:
+
+![a doodle crowd](crowd.png)
+
+```js
+import { crowd } from "mugshot-avatars/crowd";
+
+document.getElementById("team").innerHTML =
+  crowd(["ada", "grace", "alan", "edsger", "barbara"]);
+```
+
+Each person keeps the exact face their seed has as an avatar — your team page
+and your commit avatars are the same people. Poses, sweaters, stripes, coffee
+cups all come from the seed.
 
 ## Why
 
