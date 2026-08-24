@@ -12,6 +12,8 @@ export interface FaceOptions {
   mood?: Mood;          // override the expression, identity stays put
   paper?: string;       // fill the head with this color (for overlapping scenes)
   style?: "auto" | "fem" | "masc";  // auto: guess from the seed (name heuristic)
+  bust?: boolean;       // shoulders + collar portrait (nice for profile pictures)
+  backdrop?: boolean;   // soft accent disc behind the head
 }
 
 type Rng = () => number; // [0,1)
@@ -189,8 +191,8 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
 
   // --- head ---
   const rh = stream(seed, "head");
-  const hw = rand(rh, 24, 33);              // half width
-  const hh = rand(rh, 28, 38);              // half height
+  const hw = rand(rh, 21, 36);              // half width
+  const hh = rand(rh, 26, 42);              // half height
   const cx = 50 + rand(rh, -1.5, 1.5);
   const cy = 54 + rand(rh, -2, 2);
   let jaw = pick(rh, ["round", "round", "square", "pointy", "wide"]);
@@ -254,7 +256,7 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
     m === "surprised" ? "ring" :
     m === "wink" ? "wink" :
     hasGlasses ? "dot" : seedEye;
-  const rEye = rand(re, 1.7, 2.5) * (m === "surprised" ? 1.25 : 1);
+  const rEye = rand(re, 1.4, 3.0) * (m === "surprised" ? 1.25 : 1);
   const drawEye = (x: number, winkThis: boolean) => {
     if (kind === "wink" && winkThis) {
       out.push({ d: line(re, [x - 2.5, ey], [x + 2.5, ey + rand(re, -1, 1)]), width: 1.3 });
@@ -282,7 +284,7 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
   // glasses
   const rg = stream(seed, "glasses");
   if (chance(rg, 0.16)) { // same first draw as hasGlasses above
-    const gr = gap * 0.62;
+    const gr = gap * rand(rg, 0.55, 0.85);
     const shape = pick(rg, ["round", "square"]);
     const gInk = colorOn && chance(rg, 0.3) ? accent : ink;
     for (const x of [lx, rx2]) {
@@ -323,7 +325,7 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
   const rn = stream(seed, "nose");
   if (chance(rn, 0.92)) {
     const ny = ey + rand(rn, 3, 5);
-    const nl = rand(rn, 6, 11);
+    const nl = rand(rn, 5, 14);
     const dir = turn !== 0 ? Math.sign(turn) : (chance(rn, 0.5) ? 1 : -1);
     const nk = pick(rn, ["l", "l", "curve", "long"]);
     if (nk === "l") {
@@ -533,8 +535,8 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
   // --- extras: headphones, top hat, earring ---
   const rx3 = stream(seed, "extras");
   const extra = fem
-    ? pick(rx3, ["none", "none", "none", "none", "earring", "earring", "headphones", "flower"])
-    : pick(rx3, ["none", "none", "none", "none", "none", "none", "headphones", "tophat", "earring"]);
+    ? pick(rx3, ["none", "none", "none", "earring", "earring", "headphones", "flower", "beret"])
+    : pick(rx3, ["none", "none", "none", "none", "none", "headphones", "tophat", "earring", "monocle", "beret"]);
   if (extra === "headphones" && hairKind !== "cap") {
     const hInk = colorOn ? accent : ink;
     const bandPts: Pt[] = [];
@@ -561,6 +563,20 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
       out.push({ d: inkPath(rx3, circlePts(fx + Math.cos(a) * 2.6, fy + Math.sin(a) * 2.6, 1.7, 6), { close: true, wobble: 0.3 }), width: 1, stroke: colorOn ? accent : ink });
     }
     dots.push(`<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="1.3"${colorOn ? ` fill="${accent}"` : ""}/>`);
+  } else if (extra === "monocle" && !hasGlasses) {
+    const sM = chance(rx3, 0.5) ? -1 : 1;
+    const mx2 = sM > 0 ? rx2 : lx;
+    out.push({ d: inkPath(rx3, circlePts(mx2, ey, rEye + 3.2), { close: true, wobble: 0.6 }), width: 1.3 });
+    out.push({ d: line(rx3, [mx2 + rEye + 2, ey + 3], [mx2 + rEye + 4, ey + hh * 0.45], 0.6), width: 0.9 });
+  } else if (extra === "beret" && (hairKind === "bald" || hairKind === "wisps" || hairKind === "spiky" || fem)) {
+    const bInk = colorOn ? accent : ink;
+    const by2 = cy - hh * 0.82;
+    const bpts: Pt[] = [
+      [cx - hw * 0.85, by2 + 4], [cx - hw * 0.95, by2 - 3], [cx - hw * 0.3, by2 - 9],
+      [cx + hw * 0.5, by2 - 8], [cx + hw * 0.95, by2 - 1], [cx + hw * 0.8, by2 + 5],
+    ];
+    out.push({ d: inkPath(rx3, bpts, { close: true, wobble: 1 }), fill: bInk, stroke: bInk });
+    out.push({ d: line(rx3, [cx, by2 - 9], [cx + rand(rx3, -1, 2), by2 - 13], 0.4), width: 1.6, stroke: bInk });
   } else if (extra === "earring" && (hasEars || fem)) {
     const s = turn > 0.5 ? -1 : turn < -0.5 ? 1 : (chance(rx3, 0.5) ? -1 : 1);
     const px = cx + s * edgeX(earY);
@@ -569,7 +585,8 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
 
   // ---------- assemble ----------
   const S = 100;
-  const strokeW = rand(stream(seed, "pen"), 1.4, 1.8);
+  const rpen = stream(seed, "pen");
+  const strokeW = rand(rpen, 1.3, 2.1);
   let body = "";
   let openTag: string | undefined;
   for (const p of out) {
@@ -585,9 +602,38 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
   const hatch = hatchClip
     ? `<clipPath id="${clipId}"><path d="${hatchClip}"/></clipPath><g clip-path="url(#${clipId})" stroke="${out.find(o => o.d === hatchClip)?.stroke ?? ink}" stroke-width="1.1" fill="none">${hatchLines.map(d => `<path d="${d}"/>`).join("")}</g>`
     : "";
+  let pre = "";
+  if (options.backdrop) {
+    const rbd = stream(seed, "backdrop");
+    const shape = pick(rbd, ["disc", "disc", "square", "blob"]);
+    const bdC = colorOn ? accent : "#d8d2c4";
+    if (shape === "disc") pre = `<circle cx="50" cy="52" r="${rand(rbd, 40, 46).toFixed(0)}" fill="${bdC}" opacity="0.22"/>`;
+    else if (shape === "square") pre = `<rect x="8" y="10" width="84" height="84" rx="16" fill="${bdC}" opacity="0.22" transform="rotate(${rand(rbd, -4, 4).toFixed(1)} 50 52)"/>`;
+    else pre = `<path d="${inkPath(rbd, circlePts(50, 52, 43, 9), { close: true, wobble: 5 })}" fill="${bdC}" opacity="0.22"/>`;
+  }
+  let bustSvg = "";
+  if (options.bust) {
+    const rbu = stream(seed, "bust");
+    const shTop = cy + hh - 2;
+    const shirtInk = colorOn && chance(rbu, 0.7) ? accent : ink;
+    const shoulders: Pt[] = [
+      [cx - hw * 1.35, 104], [cx - hw * 1.25, shTop + 9], [cx - hw * 0.55, shTop + 1],
+      [cx + hw * 0.55, shTop + 1], [cx + hw * 1.25, shTop + 9], [cx + hw * 1.35, 104],
+    ];
+    const filled = chance(rbu, 0.6);
+    bustSvg += `<path d="${inkPath(rbu, shoulders, { close: true, wobble: 1.2 })}" fill="${filled ? shirtInk : (options.paper ?? "#f4f1ea")}" stroke="${ink}" stroke-width="${strokeW.toFixed(2)}" stroke-linejoin="round"/>`;
+    if (!filled && chance(rbu, 0.5)) { // collar ticks
+      bustSvg += `<path d="${line(rbu, [cx - 5, shTop + 2], [cx - 8, shTop + 8], 0.5)}" fill="none" stroke="${ink}" stroke-width="1.3" stroke-linecap="round"/>`;
+      bustSvg += `<path d="${line(rbu, [cx + 5, shTop + 2], [cx + 8, shTop + 8], 0.5)}" fill="none" stroke="${ink}" stroke-width="1.3" stroke-linecap="round"/>`;
+    }
+    if (chance(rbu, 0.18)) { // bowtie
+      const byT = shTop + 3;
+      bustSvg += `<path d="M${cx - 6} ${byT - 3} L${cx - 1} ${byT} L${cx - 6} ${byT + 3} Z M${cx + 6} ${byT - 3} L${cx + 1} ${byT} L${cx + 6} ${byT + 3} Z" fill="${colorOn ? accent : ink}" stroke="${ink}" stroke-width="1"/>`;
+    }
+  }
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${S} ${S}" width="${size}" height="${size}">` +
     (bg !== "transparent" ? `<rect width="${S}" height="${S}" fill="${bg}"/>` : "") +
-    body + hatch +
+    pre + bustSvg + body + hatch +
     `<g fill="${ink}">${dots.join("")}</g>` +
     `<g data-mug="pupils" fill="${ink}">${pupils.join("")}</g></svg>`;
   return {
@@ -598,4 +644,24 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
       rightOpen: kind !== "sleepy" && !(kind === "wink" && !winkSide),
     },
   };
+}
+
+/**
+ * Browser-only: render a face straight to a PNG data URL (e.g. 512px for a
+ * GitHub profile picture). Portrait defaults: bust + backdrop + paper.
+ */
+export function facePng(seed: string, options: FaceOptions = {}): Promise<string> {
+  const size = options.size ?? 512;
+  const svg = face(seed, { bust: true, backdrop: true, background: "#f4f1ea", ...options, size });
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = c.height = size;
+      c.getContext("2d")!.drawImage(img, 0, 0, size, size);
+      resolve(c.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+  });
 }

@@ -6,7 +6,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "bin"
   ],
   "scripts": {
     "build": "tsc",
@@ -37,5 +38,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/AnayGarodia/mugshot"
+  },
+  "bin": {
+    "mugshot": "bin/mugshot.js"
   }
 }
