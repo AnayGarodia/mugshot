@@ -131,8 +131,8 @@ function looksFem(seed, r) {
     }
     return score > 0;
 }
-const INKS = ["#1c1b1a", "#1c1b1a", "#1c1b1a", "#1c1b1a", "#2b3a67", "#4a3426", "#2f4a3c"];
-const ACCENTS = ["#b5563f", "#3f5d9e", "#6f8f6a", "#c98a2d", "#8a5a83"];
+const INKS = ["#1c1b1a", "#1c1b1a", "#1c1b1a", "#26221f", "#2b3a67", "#4a3426", "#2f4a3c", "#3d2f4e"];
+const ACCENTS = ["#b5563f", "#3f5d9e", "#6f8f6a", "#c98a2d", "#8a5a83", "#427d78", "#c96f4a", "#7d8fc4", "#a8763e", "#96595f", "#5e7d52", "#9a7bb0"];
 const BLUSH = "#d98973";
 export function face(seed, options = {}) {
     return build(seed, options).svg;
@@ -196,6 +196,7 @@ function build(seed, options = {}) {
         ? pick(rha, ["long", "long", "long", "bob", "bob", "bun", "pony", "curls"])
         : pick(rha, ["solid", "solid", "hatch", "spiky", "curls", "cap", "bald", "wisps"]);
     const coversEars = hairKind === "long" || hairKind === "bob";
+    const sparseHair = hairKind === "bald" || hairKind === "wisps" || hairKind === "spiky";
     // --- ears ---
     const re2 = stream(seed, "ears");
     const hasEars = !coversEars && chance(re2, fem ? 0.4 : 0.55);
@@ -212,7 +213,7 @@ function build(seed, options = {}) {
     // --- eyes ---
     const re = stream(seed, "eyes");
     const ey = cy - hh * rand(re, 0.08, 0.22);
-    const gap = hw * rand(re, 0.36, 0.5);
+    const gap = hw * rand(re, 0.38, 0.5);
     const lx = xf - gap * (1 + turn * 0.25);
     const rx2 = xf + gap * (1 - turn * 0.25);
     const hasGlasses = chance(stream(seed, "glasses"), 0.16);
@@ -221,7 +222,7 @@ function build(seed, options = {}) {
         m === "surprised" ? "ring" :
             m === "wink" ? "wink" :
                 hasGlasses ? "dot" : seedEye;
-    const rEye = rand(re, 1.4, 3.0) * (m === "surprised" ? 1.25 : 1);
+    const rEye = rand(re, 1.5, 2.6) * (hw / 28) * (m === "surprised" ? 1.25 : 1);
     const drawEye = (x, winkThis) => {
         if (kind === "wink" && winkThis) {
             out.push({ d: line(re, [x - 2.5, ey], [x + 2.5, ey + rand(re, -1, 1)]), width: 1.3 });
@@ -241,11 +242,12 @@ function build(seed, options = {}) {
     drawEye(lx, winkSide);
     drawEye(rx2, !winkSide);
     if (fem) {
+        const closed = kind === "sleepy";
         for (const [x, sgn] of [[lx, -1], [rx2, 1]]) {
-            const bx = x + sgn * (rEye + 1.6);
-            for (let i = 0; i < 2; i++) {
-                out.push({ d: line(re, [bx + sgn * i * 1.4, ey - 0.5 + i * 1.1], [bx + sgn * (2.2 + i * 1.6), ey - 2.2 + i * 0.9], 0.3), width: 1 });
-            }
+            const bx = x + sgn * (rEye + (closed ? 0.9 : 1.6));
+            const by2 = closed ? ey + 1.2 : ey - 0.5;
+            out.push({ d: line(re, [bx, by2], [bx + sgn * 2.4, by2 + (closed ? 1.6 : -1.8)], 0.25), width: 1 });
+            out.push({ d: line(re, [bx + sgn * 0.4, by2 + (closed ? -0.6 : 1.4)], [bx + sgn * 2.8, by2 + (closed ? 0.4 : 0)], 0.25), width: 1 });
         }
     }
     // glasses
@@ -268,7 +270,7 @@ function build(seed, options = {}) {
     }
     // --- brows ---
     const rb = stream(seed, "brows");
-    const browBase = chance(rb, 0.45);
+    const browBase = chance(rb, sparseHair ? 0.62 : 0.45);
     const showBrows = m === "grumpy" || m === "sad" || m === "surprised" ? true : browBase;
     if (showBrows) {
         const lift = m === "surprised" ? 3.5 : 0;
@@ -289,9 +291,9 @@ function build(seed, options = {}) {
     }
     // --- nose ---
     const rn = stream(seed, "nose");
-    if (chance(rn, 0.92)) {
+    if (sparseHair || chance(rn, 0.92)) {
         const ny = ey + rand(rn, 3, 5);
-        const nl = rand(rn, 5, 14);
+        const nl = rand(rn, 6, 12) * (hh / 33);
         const dir = turn !== 0 ? Math.sign(turn) : (chance(rn, 0.5) ? 1 : -1);
         const nk = pick(rn, ["l", "l", "curve", "long"]);
         if (nk === "l") {
@@ -313,9 +315,9 @@ function build(seed, options = {}) {
                 continue;
             const bx = xf + s * gap * 1.15;
             const pts = [];
-            for (let i = 0; i < 3; i++)
-                pts.push([bx - 3 + rand(rc, -1, 1), chY + i * 1.4], [bx + 3 + rand(rc, -1, 1), chY + i * 1.4 + 0.7]);
-            out.push({ d: inkPath(rc, pts, { wobble: 0.5 }), width: 1, stroke: colorOn ? BLUSH : ink, opacity: colorOn ? 0.75 : 0.35 });
+            for (let i = 0; i < 2; i++)
+                pts.push([bx - 4.5 + rand(rc, -0.5, 0.5), chY + i * 2], [bx + 4.5 + rand(rc, -0.5, 0.5), chY + i * 2 + 0.5]);
+            out.push({ d: inkPath(rc, pts, { wobble: 0.4 }), width: 1.6, stroke: colorOn ? BLUSH : ink, opacity: colorOn ? 0.5 : 0.25 });
         }
     }
     else if (chance(rc, 0.16)) { // freckles
@@ -327,7 +329,7 @@ function build(seed, options = {}) {
     // --- mouth ---
     const rm = stream(seed, "mouth");
     const my = cy + hh * rand(rm, 0.42, 0.58);
-    const mw = rand(rm, 4.5, 9);
+    const mw = rand(rm, 4.5, 8.5) * (hw / 28);
     const seedMouth = pick(rm, ["line", "line", "smile", "frown", "o", "smirk"]);
     const mk = m === "happy" ? "smile" :
         m === "sad" || m === "grumpy" ? (chance(rm, 0.4) ? "line" : "frown") :
@@ -352,7 +354,7 @@ function build(seed, options = {}) {
         const bend = mk === "smile" ? rand(rm, 2, 4) * (m === "happy" ? 1.3 : 1) :
             mk === "frown" ? rand(rm, -3.5, -1.5) :
                 rand(rm, -0.7, 0.7);
-        out.push({ tag: "mouth", d: inkPath(rm, [[mx - mw, my], [mx, my + bend], [mx + mw, my + rand(rm, -1, 1)]], { wobble: 0.6 }) });
+        out.push({ tag: "mouth", d: inkPath(rm, [[mx - mw, my], [mx, my + bend], [mx + mw, my + rand(rm, -0.6, 0.6)]], { wobble: 0.5 }) });
     }
     // --- facial hair ---
     const rf = stream(seed, "fuzz");
@@ -372,7 +374,7 @@ function build(seed, options = {}) {
     // --- hair ---
     let hatchClip = "";
     const hatchLines = [];
-    const hairInk = colorOn && chance(rha, hairKind === "cap" ? 0.55 : 0.25) ? accent : ink;
+    const hairInk = colorOn && chance(rha, hairKind === "cap" ? 0.6 : 0.3) ? pick(rha, ACCENTS) : ink;
     const hairline = cy - hh * rand(rha, 0.22, 0.58);
     if (hairKind === "solid" || hairKind === "cap" || hairKind === "hatch") {
         const pts = [];
@@ -491,14 +493,24 @@ function build(seed, options = {}) {
         }
     }
     else if (hairKind === "curls") {
-        const nC = Math.floor(rand(rha, 8, 12));
-        for (let i = 0; i < nC; i++) {
-            const a = Math.PI + ((i + 0.5) / nC) * Math.PI;
-            const rr = rand(rha, 3, 4.5);
-            const bx = cx + Math.cos(a) * (hw - rr * 0.3) * 1.02;
-            const by = cy - Math.abs(Math.sin(a)) * (hh - rr * 0.3) * 1.05;
-            out.push({ d: inkPath(rha, circlePts(bx, by, rr), { close: true, wobble: 0.45 }), width: 1.25, stroke: hairInk });
+        // scalloped cloud hugging the skull, filled — reads as curly hair
+        const yl = hairline;
+        const cloud = [[cx - edgeX(yl) - 1.5, yl + 1]];
+        const bumps = Math.floor(rand(rha, 6, 8));
+        for (let i = 0; i <= bumps; i++) {
+            const a = Math.PI + ((i + 0.5) / (bumps + 1)) * Math.PI;
+            const rr = 1 + rand(rha, 0.1, 0.24); // bump amplitude
+            cloud.push([cx + Math.cos(a) * hw * rr, cy - Math.abs(Math.sin(a)) * (hh + rand(rha, 3, 7))]);
+            const a2 = Math.PI + ((i + 1) / (bumps + 1)) * Math.PI;
+            cloud.push([cx + Math.cos(a2) * hw * 1.0, cy - Math.abs(Math.sin(a2)) * (hh + 0.5)]);
         }
+        cloud.push([cx + edgeX(yl) + 1.5, yl + 1]);
+        const back3 = [];
+        for (let i = 3; i >= 1; i--) {
+            const t = i / 4;
+            back3.push([cx - edgeX(yl) + t * 2 * edgeX(yl), yl + 3.5 + rand(rha, -2, 2)]);
+        }
+        out.push({ d: inkPath(rha, [...cloud, ...back3.reverse()], { close: true, wobble: 1.3 }), fill: hairInk, stroke: hairInk });
     }
     else if (hairKind === "wisps") {
         for (let i = 0; i < 3; i++) {
@@ -510,7 +522,7 @@ function build(seed, options = {}) {
     // --- extras: headphones, top hat, earring ---
     const rx3 = stream(seed, "extras");
     const extra = fem
-        ? pick(rx3, ["none", "none", "none", "earring", "earring", "headphones", "flower", "beret"])
+        ? pick(rx3, ["none", "none", "none", "none", "earring", "flower", "beret", "headphones"])
         : pick(rx3, ["none", "none", "none", "none", "none", "headphones", "tophat", "earring", "monocle", "beret"]);
     if (extra === "headphones" && hairKind !== "cap") {
         const hInk = colorOn ? accent : ink;
@@ -527,7 +539,7 @@ function build(seed, options = {}) {
     }
     else if (extra === "tophat" && (hairKind === "bald" || hairKind === "wisps" || hairKind === "spiky")) {
         const hInk = colorOn && chance(rx3, 0.4) ? accent : ink;
-        const topY = cy - hh - 1;
+        const topY = cy - hh + 3;
         const bw2 = hw * rand(rx3, 0.55, 0.68), ht = rand(rx3, 14, 20);
         out.push({ d: inkPath(rx3, [[cx - bw2, topY + 2], [cx - bw2 + rand(rx3, -1.5, 1.5), topY - ht], [cx + bw2 + rand(rx3, -1.5, 1.5), topY - ht], [cx + bw2, topY + 2]], { close: true, wobble: 0.9 }), fill: hInk, stroke: hInk });
         out.push({ d: line(rx3, [cx - bw2 - rand(rx3, 4, 7), topY + 3], [cx + bw2 + rand(rx3, 4, 7), topY + 2.5], 0.8), width: 2, stroke: hInk });
@@ -549,7 +561,7 @@ function build(seed, options = {}) {
     }
     else if (extra === "beret" && (hairKind === "bald" || hairKind === "wisps" || hairKind === "spiky" || fem)) {
         const bInk = colorOn ? accent : ink;
-        const by2 = cy - hh * 0.82;
+        const by2 = cy - hh * 0.68;
         const bpts = [
             [cx - hw * 0.85, by2 + 4], [cx - hw * 0.95, by2 - 3], [cx - hw * 0.3, by2 - 9],
             [cx + hw * 0.5, by2 - 8], [cx + hw * 0.95, by2 - 1], [cx + hw * 0.8, by2 + 5],
