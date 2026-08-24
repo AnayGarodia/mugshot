@@ -2,6 +2,8 @@
 
 Deterministic hand-drawn doodle face avatars. Hash any string into a charming ink-sketched face.
 
+**Try it: [anaygarodia.github.io/mugshot](https://anaygarodia.github.io/mugshot/)**
+
 ![48 mugshot faces](grid.png)
 
 Zero dependencies. Pure SVG. Same string, same face, forever.
@@ -85,14 +87,15 @@ Seeds that look like names pick a matching presentation — `face("ada")` gets a
 bob, lashes, maybe a flower; `face("alan")` gets a flat cap. Not a name? The
 seed decides. Override anytime with `style: "fem" | "masc"`.
 
-## Your GitHub pfp
+## Your GitHub pfp — two steps
 
-The demo has a one-click "download 512px PNG" button — upload it at
-github.com/settings/profile. Or from code:
+1. Go to **[anaygarodia.github.io/mugshot](https://anaygarodia.github.io/mugshot/)**, type your name, click *download 512px PNG*
+2. Upload it at [github.com/settings/profile](https://github.com/settings/profile)
 
-```js
-img.src = "data:image/svg+xml;utf8," + encodeURIComponent(face("yourname", { size: 512 }));
-```
+Portrait mode (shoulders + soft backdrop) is on by default for downloads.
+From a terminal instead: `npx mugshot-avatars yourname` writes `yourname.png`.
+From code: `await facePng("yourname")` (browser) returns a PNG data URL, or
+`face("yourname", { bust: true, backdrop: true })` for the portrait SVG.
 
 ## Crowds
 
