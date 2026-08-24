@@ -16,7 +16,7 @@
 <div class="hero">
   <mug-shot id="mug" seed="anay" size="200" idle="8000" style="width:200px"></mug-shot>
   <div>
-    <p><input id="seed" value="anay" placeholder="type a name…"> <span class="hint">it watches you type</span></p>
+    <p><input id="seed" value="anay" placeholder="type a name…"> <button data-look="">auto</button><button data-look="fem">girl</button><button data-look="masc">guy</button> <span class="hint">it watches you type — wrong guess? flip it</span></p>
     <p>
       <button data-r="happy">ship it</button>
       <button data-r="grumpy">build failed</button>
@@ -55,6 +55,9 @@
     clearTimeout(sayT);
     sayT = setTimeout(() => mug.say("hi, " + (seedEl.value || "stranger") + "!"), 700);
   });
+  document.querySelectorAll("[data-look]").forEach(b => b.addEventListener("click", () => {
+    b.dataset.look ? mug.setAttribute("look", b.dataset.look) : mug.removeAttribute("look");
+  }));
   document.getElementById("pfp").addEventListener("click", () => {
     const svg = face(seedEl.value || "mugshot", { size: 512, background: "#f4f1ea" });
     const img = new Image();

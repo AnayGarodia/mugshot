@@ -11,7 +11,7 @@ import { faceParts, seededRng, type FaceParts, type Mood } from "./index.js";
 const HERD = new Set<MugShotElement>();
 
 export class MugShotElement extends HTMLElement {
-  static observedAttributes = ["seed", "mood", "size", "color", "ink", "idle"];
+  static observedAttributes = ["seed", "mood", "size", "color", "ink", "idle", "look"];
   #parts!: FaceParts;
   #svg: SVGSVGElement | null = null;
   #pupils: SVGGElement | null = null;
@@ -140,6 +140,7 @@ export class MugShotElement extends HTMLElement {
       size, mood: this.#mood,
       color: this.getAttribute("color") !== "false",
       ink: this.getAttribute("ink") || undefined,
+      style: (this.getAttribute("look") as "fem" | "masc") || undefined,
     });
     const ink = this.#parts.ink;
     this.shadowRoot!.innerHTML = `<style>
