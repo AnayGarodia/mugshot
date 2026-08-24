@@ -48,6 +48,10 @@ that change faces only ship as majors.
 
 ## Demo
 
-Open `demo.html` after `npm run build` — type your name, click the grid to reroll.
+```
+npm run build && npx serve .
+```
+then open http://localhost:3000/demo.html — type your name, click the grid to reroll.
+(A plain file:// open won't work; browsers block module imports from disk.)
 
 MIT

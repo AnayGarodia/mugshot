@@ -27,9 +27,5 @@
     "doodle",
     "face",
     "hand-drawn"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/anaygarodia/mugshot"
-  }
+  ]
 }
