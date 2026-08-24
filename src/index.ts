@@ -1,10 +1,14 @@
 // mugshot — deterministic hand-drawn doodle face avatars.
 // face(seed) -> SVG string. Same seed, same face, always.
 
+export type Mood = "auto" | "happy" | "sad" | "grumpy" | "sleepy" | "surprised" | "wink" | "calm";
+
 export interface FaceOptions {
   size?: number;        // px, default 120
   background?: string;  // css color, default "transparent"
-  ink?: string;         // stroke color, default near-black
+  ink?: string;         // force a single stroke color (disables auto palette)
+  color?: boolean;      // false = classic black ink, default true
+  mood?: Mood;          // override the expression, identity stays put
 }
 
 type Rng = () => number; // [0,1)
@@ -70,13 +74,32 @@ function line(r: Rng, a: Pt, b: Pt, wobble = 0.8): string {
   return inkPath(r, [a, mid, b], { wobble });
 }
 
+function circlePts(cx: number, cy: number, r: number, n = 8): Pt[] {
+  const pts: Pt[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+  }
+  return pts;
+}
+
+// ---------- palette ----------
+
+const INKS = ["#1c1b1a", "#1c1b1a", "#1c1b1a", "#1c1b1a", "#2b3a67", "#4a3426", "#2f4a3c"];
+const ACCENTS = ["#b5563f", "#3f5d9e", "#6f8f6a", "#c98a2d", "#8a5a83"];
+const BLUSH = "#d98973";
+
 // ---------- face ----------
 
-interface Draw { d: string; fill?: boolean; width?: number }
+interface Draw { d: string; fill?: string; stroke?: string; width?: number; opacity?: number }
 
 export function face(seed: string, options: FaceOptions = {}): string {
   const size = options.size ?? 120;
-  const ink = options.ink ?? "#1c1b1a";
+  const colorOn = options.color !== false && !options.ink;
+  const rpal = stream(seed, "palette");
+  const ink = options.ink ?? (colorOn ? pick(rpal, INKS) : "#1c1b1a");
+  const accent = colorOn ? pick(rpal, ACCENTS) : ink;
+  const mood: Mood = options.mood ?? "auto";
   const bg = options.background ?? "transparent";
   const out: Draw[] = [];
   const dots: string[] = [];
@@ -92,34 +115,39 @@ export function face(seed: string, options: FaceOptions = {}): string {
   const headPts: Pt[] = [];
   const N = 10;
   for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2 - Math.PI / 2; // start at top
-    let rx = hw, ry = hh;
-    const s = Math.sin(a); // 1 at bottom, -1 at top
-    if (jaw === "square" && s > 0.3) { rx *= 1.08; ry *= 0.92; }
+    const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    let rx = hw;
+    const s = Math.sin(a);
+    if (jaw === "square" && s > 0.3) { rx *= 1.08; }
     if (jaw === "pointy" && s > 0.3) { rx *= 1 - (s - 0.3) * 0.22; }
     if (jaw === "wide" && Math.abs(s) < 0.5) { rx *= 1.1; }
     const wobR = 1 + rand(rh, -0.05, 0.05);
-    headPts.push([cx + Math.cos(a) * rx * wobR, cy + s * ry * wobR]);
+    headPts.push([cx + Math.cos(a) * rx * wobR, cy + s * hh * wobR]);
   }
   out.push({ d: inkPath(rh, headPts, { close: true, wobble: 1.4 }) });
 
-  // head-edge x at height y (approx, for ears/hair)
   const edgeX = (y: number) => hw * Math.sqrt(Math.max(0, 1 - ((y - cy) / hh) ** 2));
 
-  // --- pose: turn shifts feature midline ---
+  // --- pose ---
   const rp = stream(seed, "pose");
   const turn = chance(rp, 0.55) ? 0 : rand(rp, -1, 1) * pick(rp, [0.4, 0.7]);
-  const xf = cx + turn * hw * 0.28;         // feature midline
+  const xf = cx + turn * hw * 0.28;
+
+  // --- mood -> expression controls ---
+  const rmood = stream(seed, "mood");
+  const autoMood = pick(rmood, ["calm", "calm", "happy", "happy", "grumpy", "sleepy", "surprised", "wink"]);
+  const m: Exclude<Mood, "auto"> = mood === "auto" ? (autoMood as Exclude<Mood, "auto">) : mood;
 
   // --- ears ---
   const re2 = stream(seed, "ears");
-  if (chance(re2, 0.55)) {
-    const ey0 = cy + rand(re2, -4, 2);
+  const hasEars = chance(re2, 0.55);
+  const earY = cy + rand(re2, -4, 2);
+  if (hasEars) {
     for (const s of [-1, 1]) {
-      if (turn * s > 0.5) continue; // far ear hidden when turned
-      const jawW = (jaw === "wide" && Math.abs((ey0 - cy) / hh) < 0.5) ? 1.1 : jaw === "square" ? 1.04 : 1;
-      const ex0 = cx + s * edgeX(ey0) * jawW;
-      out.push({ d: inkPath(re2, [[ex0, ey0 - 4], [ex0 + s * 3.5, ey0], [ex0, ey0 + 4]], { wobble: 0.8 }) });
+      if (turn * s > 0.5) continue;
+      const jawW = (jaw === "wide" && Math.abs((earY - cy) / hh) < 0.5) ? 1.1 : jaw === "square" ? 1.04 : 1;
+      const ex0 = cx + s * edgeX(earY) * jawW;
+      out.push({ d: inkPath(re2, [[ex0, earY - 4], [ex0 + s * 3.5, earY], [ex0, earY + 4]], { wobble: 0.8 }) });
     }
   }
 
@@ -127,11 +155,16 @@ export function face(seed: string, options: FaceOptions = {}): string {
   const re = stream(seed, "eyes");
   const ey = cy - hh * rand(re, 0.08, 0.22);
   const gap = hw * rand(re, 0.36, 0.5);
-  const lx = xf - gap * (1 + turn * 0.25);  // near-side eye spreads, far-side compresses
+  const lx = xf - gap * (1 + turn * 0.25);
   const rx2 = xf + gap * (1 - turn * 0.25);
   const hasGlasses = chance(stream(seed, "glasses"), 0.16);
-  const kind = hasGlasses ? "dot" : pick(re, ["dot", "dot", "dot", "ring", "wink", "sleepy"]);
-  const rEye = rand(re, 1.7, 2.5);
+  const seedEye = pick(re, ["dot", "dot", "dot", "ring", "dot", "dot"]);
+  const kind =
+    m === "sleepy" ? "sleepy" :
+    m === "surprised" ? "ring" :
+    m === "wink" ? "wink" :
+    hasGlasses ? "dot" : seedEye;
+  const rEye = rand(re, 1.7, 2.5) * (m === "surprised" ? 1.25 : 1);
   const drawEye = (x: number, winkThis: boolean) => {
     if (kind === "wink" && winkThis) {
       out.push({ d: line(re, [x - 2.5, ey], [x + 2.5, ey + rand(re, -1, 1)]), width: 1.3 });
@@ -153,27 +186,39 @@ export function face(seed: string, options: FaceOptions = {}): string {
   if (chance(rg, 0.16)) { // same first draw as hasGlasses above
     const gr = gap * 0.62;
     const shape = pick(rg, ["round", "square"]);
+    const gInk = colorOn && chance(rg, 0.3) ? accent : ink;
     for (const x of [lx, rx2]) {
       out.push({
         d: shape === "round"
           ? inkPath(rg, circlePts(x, ey, gr), { close: true, wobble: 0.7 })
           : inkPath(rg, [[x - gr, ey - gr * 0.8], [x + gr, ey - gr * 0.8], [x + gr, ey + gr * 0.8], [x - gr, ey + gr * 0.8]], { close: true, wobble: 0.7 }),
-        width: 1.2,
+        width: 1.2, stroke: gInk,
       });
     }
-    out.push({ d: line(rg, [lx + gr, ey], [rx2 - gr, ey]), width: 1.2 });
-    out.push({ d: line(rg, [lx - gr, ey], [cx - edgeX(ey), ey - 1]), width: 1.0 });
-    out.push({ d: line(rg, [rx2 + gr, ey], [cx + edgeX(ey), ey - 1]), width: 1.0 });
+    out.push({ d: line(rg, [lx + gr, ey], [rx2 - gr, ey]), width: 1.2, stroke: gInk });
+    out.push({ d: line(rg, [lx - gr, ey], [cx - edgeX(ey), ey - 1]), width: 1.0, stroke: gInk });
+    out.push({ d: line(rg, [rx2 + gr, ey], [cx + edgeX(ey), ey - 1]), width: 1.0, stroke: gInk });
   }
 
   // --- brows ---
   const rb = stream(seed, "brows");
-  if (chance(rb, 0.45)) {
-    const by = ey - rand(rb, 4, 7);
-    const tilt = rand(rb, -1.5, 1.5);
+  const browBase = chance(rb, 0.45);
+  const showBrows = m === "grumpy" || m === "sad" || m === "surprised" ? true : browBase;
+  if (showBrows) {
+    const lift = m === "surprised" ? 3.5 : 0;
+    const by = ey - rand(rb, 4, 7) - lift;
+    const seedTilt = rand(rb, -1.5, 1.5);
+    // tilt: + = inner ends down (grumpy), - = inner ends up (sad)
+    const tilt = m === "grumpy" ? rand(rb, 1.6, 2.6) : m === "sad" ? rand(rb, -2.4, -1.4) : m === "surprised" ? 0 : seedTilt;
     const bw = rand(rb, 2.5, 4.5);
-    out.push({ d: line(rb, [lx - bw, by + tilt], [lx + bw, by - tilt]), width: rand(rb, 1.2, 2.2) });
-    out.push({ d: line(rb, [rx2 - bw, by - tilt * rand(rb, 0.3, 1.5)], [rx2 + bw, by + tilt]), width: rand(rb, 1.2, 2.2) });
+    const w = m === "grumpy" ? rand(rb, 1.8, 2.6) : rand(rb, 1.2, 2.2);
+    const uni = m !== "surprised" && chance(rb, 0.06);
+    if (uni) {
+      out.push({ d: line(rb, [lx - bw, by], [rx2 + bw, by + rand(rb, -1, 1)], 1), width: 2.4 });
+    } else {
+      out.push({ d: line(rb, [lx - bw, by - tilt], [lx + bw, by + tilt]), width: w });
+      out.push({ d: line(rb, [rx2 - bw, by + tilt], [rx2 + bw, by - tilt]), width: w });
+    }
   }
 
   // --- nose ---
@@ -192,31 +237,61 @@ export function face(seed: string, options: FaceOptions = {}): string {
     }
   }
 
+  // --- cheeks: blush / freckles ---
+  const rc = stream(seed, "cheeks");
+  const chY = ey + hh * 0.28;
+  if (chance(rc, colorOn ? 0.3 : 0.12)) { // blush
+    for (const s of [-1, 1]) {
+      if (turn * s > 0.5) continue;
+      const bx = xf + s * gap * 1.15;
+      const pts: Pt[] = [];
+      for (let i = 0; i < 3; i++) pts.push([bx - 3 + rand(rc, -1, 1), chY + i * 1.4], [bx + 3 + rand(rc, -1, 1), chY + i * 1.4 + 0.7]);
+      out.push({ d: inkPath(rc, pts, { wobble: 0.5 }), width: 1, stroke: colorOn ? BLUSH : ink, opacity: colorOn ? 0.75 : 0.35 });
+    }
+  } else if (chance(rc, 0.16)) { // freckles
+    for (let i = 0; i < Math.floor(rand(rc, 4, 8)); i++) {
+      const s = chance(rc, 0.5) ? -1 : 1;
+      dots.push(`<circle cx="${(xf + s * rand(rc, 4, gap * 1.2)).toFixed(1)}" cy="${(chY + rand(rc, -2, 3)).toFixed(1)}" r="0.55" opacity="0.6"/>`);
+    }
+  }
+
   // --- mouth ---
   const rm = stream(seed, "mouth");
-  if (chance(rm, 0.95)) {
-    const my = cy + hh * rand(rm, 0.42, 0.58);
-    const mw = rand(rm, 4.5, 9);
-    const mk = pick(rm, ["line", "line", "smile", "frown", "o", "smirk"]);
-    const mx = xf + rand(rm, -1, 1);
-    if (mk === "o") {
-      out.push({ d: inkPath(rm, circlePts(mx, my, rand(rm, 1.5, 2.8)), { close: true, wobble: 0.5 }), width: 1.3 });
-    } else if (mk === "smirk") {
-      out.push({ d: inkPath(rm, [[mx - mw, my], [mx + mw * 0.3, my + 1], [mx + mw, my - rand(rm, 1.5, 3)]], { wobble: 0.6 }) });
-    } else {
-      const bend = mk === "smile" ? rand(rm, 1.5, 3.5) : mk === "frown" ? rand(rm, -3, -1.5) : rand(rm, -0.7, 0.7);
-      out.push({ d: inkPath(rm, [[mx - mw, my], [mx, my + bend], [mx + mw, my + rand(rm, -1, 1)]], { wobble: 0.6 }) });
-    }
+  const my = cy + hh * rand(rm, 0.42, 0.58);
+  const mw = rand(rm, 4.5, 9);
+  const seedMouth = pick(rm, ["line", "line", "smile", "frown", "o", "smirk"]);
+  const mk =
+    m === "happy" ? "smile" :
+    m === "sad" || m === "grumpy" ? (chance(rm, 0.4) ? "line" : "frown") :
+    m === "surprised" ? "o" :
+    m === "wink" ? "smirk" :
+    m === "sleepy" ? (chance(rm, 0.5) ? "line" : "o") :
+    seedMouth;
+  const mx = xf + rand(rm, -1, 1);
+  if (mk === "o") {
+    const orr = m === "surprised" ? rand(rm, 2.4, 3.6) : rand(rm, 1.5, 2.8);
+    out.push({ d: inkPath(rm, circlePts(mx, my, orr), { close: true, wobble: 0.5 }), width: 1.3 });
+  } else if (mk === "smirk") {
+    out.push({ d: inkPath(rm, [[mx - mw, my], [mx + mw * 0.3, my + 1], [mx + mw, my - rand(rm, 1.5, 3)]], { wobble: 0.6 }) });
+  } else if (mk === "smile" && chance(rm, m === "happy" ? 0.35 : 0.12)) { // toothy grin
+    const gw = mw * 1.1, gh = rand(rm, 3, 4.5);
+    out.push({ d: inkPath(rm, [[mx - gw, my], [mx, my + gh], [mx + gw, my]], { close: true, wobble: 0.7 }), width: 1.2 });
+    out.push({ d: line(rm, [mx - gw * 0.8, my + gh * 0.45], [mx + gw * 0.8, my + gh * 0.45], 0.4), width: 0.9 });
+  } else {
+    const bend =
+      mk === "smile" ? rand(rm, 2, 4) * (m === "happy" ? 1.3 : 1) :
+      mk === "frown" ? rand(rm, -3.5, -1.5) :
+      rand(rm, -0.7, 0.7);
+    out.push({ d: inkPath(rm, [[mx - mw, my], [mx, my + bend], [mx + mw, my + rand(rm, -1, 1)]], { wobble: 0.6 }) });
   }
 
   // --- facial hair ---
   const rf = stream(seed, "fuzz");
   if (chance(rf, 0.18)) {
-    const my = cy + hh * 0.5;
-    if (chance(rf, 0.6)) { // mustache
+    if (chance(rf, 0.6)) {
       const muY = cy + hh * 0.38;
       out.push({ d: line(rf, [xf - rand(rf, 4, 7), muY], [xf + rand(rf, 4, 7), muY - 0.5], 1), width: rand(rf, 2, 3) });
-    } else { // chin scruff
+    } else {
       const chinY = cy + hh * 0.86;
       for (let i = 0; i < 5; i++) {
         const sx = xf + rand(rf, -6, 6);
@@ -230,24 +305,22 @@ export function face(seed: string, options: FaceOptions = {}): string {
   const hatchLines: string[] = [];
   const rha = stream(seed, "hair");
   const hairKind = pick(rha, ["solid", "solid", "hatch", "spiky", "curls", "cap", "bald", "wisps"]);
-  const hairTopY = (a: number) => cy + Math.sin(a) * hh; // a in radians, -pi/2 = top
+  const hairInk = colorOn && chance(rha, hairKind === "cap" ? 0.55 : 0.25) ? accent : ink;
   const hairline = cy - hh * rand(rha, 0.22, 0.58);
   if (hairKind === "solid" || hairKind === "cap" || hairKind === "hatch") {
-    // Mass hugging the skull from ear to ear, closed along a wavy hairline.
     const pts: Pt[] = [];
     const steps = 8;
     const yl = hairKind === "cap" ? cy - hh * 0.45 : hairline;
     for (let i = 0; i <= steps; i++) {
-      const a = Math.PI + (i / steps) * Math.PI;         // left edge over top to right edge
+      const a = Math.PI + (i / steps) * Math.PI;
       const px = cx + Math.cos(a) * (hw + 0.5) * rand(rha, 0.98, 1.05);
       pts.push([px, cy - Math.abs(Math.sin(a)) * (hh + rand(rha, 0, 2.5))]);
     }
-    // fix endpoints to hairline height, then wavy return across forehead
     pts[0] = [cx - edgeX(yl), yl];
     pts[pts.length - 1] = [cx + edgeX(yl), yl];
     const back: Pt[] = [];
     const seg = pick(rha, [3, 4, 5]);
-    const dip = pick(rha, [0, 0, 1, -1]); // side part dips one side
+    const dip = pick(rha, [0, 0, 1, -1]);
     for (let i = seg - 1; i >= 1; i--) {
       const t = i / seg;
       const bx = cx - edgeX(yl) + t * 2 * edgeX(yl);
@@ -256,19 +329,19 @@ export function face(seed: string, options: FaceOptions = {}): string {
     }
     const hairD = inkPath(rha, [...pts, ...back.reverse()], { close: true, wobble: 1.2 });
     if (hairKind === "hatch") {
-      out.push({ d: hairD, width: 1.4 });
+      out.push({ d: hairD, width: 1.4, stroke: hairInk });
       hatchClip = hairD;
-      const ang = pick(rha, [-1, 1]) * rand(rha, 0.5, 1.1); // slope
+      const ang = pick(rha, [-1, 1]) * rand(rha, 0.5, 1.1);
       for (let hx = cx - hw - 6; hx < cx + hw + 6; hx += rand(rha, 2.2, 3.4)) {
         hatchLines.push(line(rha, [hx, cy - hh - 8], [hx + ang * 22, cy - hh * 0.2], 0.4));
       }
     } else {
-      out.push({ d: hairD, fill: true });
+      out.push({ d: hairD, fill: hairInk, stroke: hairInk });
     }
-    if (hairKind === "cap") { // brim
+    if (hairKind === "cap") {
       const by = yl + 2;
       const bs = turn >= 0 ? 1 : -1;
-      out.push({ d: line(rha, [cx + bs * edgeX(by), by], [cx + bs * (edgeX(by) + rand(rha, 5, 9)), by + rand(rha, 0, 2)], 1), width: 2 });
+      out.push({ d: line(rha, [cx + bs * edgeX(by), by], [cx + bs * (edgeX(by) + rand(rha, 5, 9)), by + rand(rha, 0, 2)], 1), width: 2, stroke: hairInk });
     }
   } else if (hairKind === "spiky") {
     const nSpikes = Math.floor(rand(rha, 6, 10));
@@ -279,7 +352,7 @@ export function face(seed: string, options: FaceOptions = {}): string {
       const len = rand(rha, 4, 9);
       const ex2 = bx + Math.cos(a) * len * 0.9 + rand(rha, -1.5, 1.5);
       const ey2 = by - Math.abs(Math.sin(a)) * len - rand(rha, 0, 2);
-      out.push({ d: line(rha, [bx, by], [ex2, ey2], 0.4), width: 1.5 });
+      out.push({ d: line(rha, [bx, by], [ex2, ey2], 0.4), width: 1.5, stroke: hairInk });
     }
   } else if (hairKind === "curls") {
     const nC = Math.floor(rand(rha, 8, 12));
@@ -288,36 +361,54 @@ export function face(seed: string, options: FaceOptions = {}): string {
       const rr = rand(rha, 3, 4.5);
       const bx = cx + Math.cos(a) * (hw - rr * 0.3) * 1.02;
       const by = cy - Math.abs(Math.sin(a)) * (hh - rr * 0.3) * 1.05;
-      out.push({ d: inkPath(rha, circlePts(bx, by, rr), { close: true, wobble: 0.45 }), width: 1.25 });
+      out.push({ d: inkPath(rha, circlePts(bx, by, rr), { close: true, wobble: 0.45 }), width: 1.25, stroke: hairInk });
     }
   } else if (hairKind === "wisps") {
     for (let i = 0; i < 3; i++) {
       const bx = cx + rand(rha, -8, 8);
       const by = cy - hh * 1.0;
-      out.push({ d: inkPath(rha, [[bx, by + 2], [bx + rand(rha, -2, 2), by - rand(rha, 3, 6)], [bx + rand(rha, -4, 4), by - rand(rha, 5, 9)]], { wobble: 0.5 }), width: 1.1 });
+      out.push({ d: inkPath(rha, [[bx, by + 2], [bx + rand(rha, -2, 2), by - rand(rha, 3, 6)], [bx + rand(rha, -4, 4), by - rand(rha, 5, 9)]], { wobble: 0.5 }), width: 1.1, stroke: hairInk });
     }
   } // bald: nothing
+
+  // --- extras: headphones, top hat, earring ---
+  const rx3 = stream(seed, "extras");
+  const extra = pick(rx3, ["none", "none", "none", "none", "none", "none", "headphones", "tophat", "earring"]);
+  if (extra === "headphones" && hairKind !== "cap") {
+    const hInk = colorOn ? accent : ink;
+    const bandPts: Pt[] = [];
+    for (let i = 0; i <= 6; i++) {
+      const a = Math.PI + (i / 6) * Math.PI;
+      bandPts.push([cx + Math.cos(a) * (hw + 3), cy - Math.abs(Math.sin(a)) * (hh + 3.5)]);
+    }
+    out.push({ d: inkPath(rx3, bandPts, { wobble: 0.8 }), width: 2, stroke: hInk });
+    for (const s of [-1, 1]) {
+      const px = cx + s * edgeX(earY);
+      out.push({ d: inkPath(rx3, circlePts(px, earY, 3.6, 8), { close: true, wobble: 0.5 }), fill: hInk, stroke: hInk });
+    }
+  } else if (extra === "tophat" && (hairKind === "bald" || hairKind === "wisps" || hairKind === "spiky")) {
+    const hInk = colorOn && chance(rx3, 0.4) ? accent : ink;
+    const topY = cy - hh - 1;
+    const bw2 = hw * rand(rx3, 0.55, 0.68), ht = rand(rx3, 14, 20);
+    out.push({ d: inkPath(rx3, [[cx - bw2, topY + 2], [cx - bw2 + rand(rx3, -1.5, 1.5), topY - ht], [cx + bw2 + rand(rx3, -1.5, 1.5), topY - ht], [cx + bw2, topY + 2]], { close: true, wobble: 0.9 }), fill: hInk, stroke: hInk });
+    out.push({ d: line(rx3, [cx - bw2 - rand(rx3, 4, 7), topY + 3], [cx + bw2 + rand(rx3, 4, 7), topY + 2.5], 0.8), width: 2, stroke: hInk });
+  } else if (extra === "earring" && hasEars) {
+    const s = turn > 0.5 ? -1 : turn < -0.5 ? 1 : (chance(rx3, 0.5) ? -1 : 1);
+    const px = cx + s * edgeX(earY);
+    dots.push(`<circle cx="${(px + s * 1.2).toFixed(1)}" cy="${(earY + 5.6).toFixed(1)}" r="1.1"${colorOn ? ` fill="${accent}"` : ""}/>`);
+  }
 
   // ---------- assemble ----------
   const S = 100;
   const strokeW = rand(stream(seed, "pen"), 1.4, 1.8);
   const body = out.map(p =>
-    `<path d="${p.d}" fill="${p.fill ? ink : "none"}" stroke="${ink}" stroke-width="${(p.width ?? strokeW).toFixed(2)}" stroke-linecap="round" stroke-linejoin="round"/>`
+    `<path d="${p.d}" fill="${p.fill ?? "none"}" stroke="${p.stroke ?? ink}" stroke-width="${(p.width ?? strokeW).toFixed(2)}"${p.opacity ? ` opacity="${p.opacity}"` : ""} stroke-linecap="round" stroke-linejoin="round"/>`
   ).join("");
   const clipId = "mug" + (xmur3(seed)() >>> 0).toString(36);
   const hatch = hatchClip
-    ? `<clipPath id="${clipId}"><path d="${hatchClip}"/></clipPath><g clip-path="url(#${clipId})" stroke="${ink}" stroke-width="1.1" fill="none">${hatchLines.map(d => `<path d="${d}"/>`).join("")}</g>`
+    ? `<clipPath id="${clipId}"><path d="${hatchClip}"/></clipPath><g clip-path="url(#${clipId})" stroke="${out.find(o => o.d === hatchClip)?.stroke ?? ink}" stroke-width="1.1" fill="none">${hatchLines.map(d => `<path d="${d}"/>`).join("")}</g>`
     : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${S} ${S}" width="${size}" height="${size}">` +
     (bg !== "transparent" ? `<rect width="${S}" height="${S}" fill="${bg}"/>` : "") +
     body + hatch + `<g fill="${ink}">${dots.join("")}</g></svg>`;
-}
-
-function circlePts(cx: number, cy: number, r: number): Pt[] {
-  const pts: Pt[] = [];
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
-  }
-  return pts;
 }

@@ -4,6 +4,7 @@
 <style>
   body { font-family: ui-monospace, monospace; background: #f4f1ea; color: #1c1b1a; max-width: 1000px; margin: 40px auto; padding: 0 16px; }
   h1 { font-weight: 600; }
+  button { font: inherit; font-size: 13px; background: transparent; border: 1.2px solid #1c1b1a; border-radius: 5px; padding: 3px 9px; cursor: pointer; margin-left: 4px; }
   input { font: inherit; padding: 8px 12px; border: 1.5px solid #1c1b1a; background: transparent; border-radius: 6px; width: 240px; }
   #you svg { vertical-align: middle; }
   #grid { display: grid; grid-template-columns: repeat(8, 1fr); margin-top: 24px; }
@@ -13,6 +14,9 @@
 <h1>mugshot</h1>
 <p>Deterministic hand-drawn doodle avatars. Type anything — same string, same face, forever.</p>
 <p><input id="seed" value="anay" autofocus> <span id="you"></span></p>
+<p id="moods" class="hint">mood:
+  <button data-m="auto">auto</button><button data-m="happy">happy</button><button data-m="grumpy">grumpy</button><button data-m="sad">sad</button><button data-m="sleepy">sleepy</button><button data-m="surprised">surprised</button><button data-m="wink">wink</button>
+</p>
 <p class="hint">click any face to reroll the grid · every face below is just <code>face("mug-" + i)</code></p>
 <div id="grid"></div>
 <script type="module">
@@ -20,8 +24,12 @@
   const grid = document.getElementById("grid");
   const seedEl = document.getElementById("seed");
   const you = document.getElementById("you");
-  const draw = () => { you.innerHTML = face(seedEl.value, { size: 96 }); };
+  let mood = "auto";
+  const draw = () => { you.innerHTML = face(seedEl.value, { size: 96, mood }); };
   seedEl.addEventListener("input", draw); draw();
+  document.getElementById("moods").addEventListener("click", e => {
+    if (e.target.dataset.m) { mood = e.target.dataset.m; draw(); }
+  });
   let batch = 0;
   const fill = () => {
     grid.innerHTML = "";

@@ -16,8 +16,26 @@ npm install mugshot-avatars
 import { face } from "mugshot-avatars";
 
 const svg = face("ada@example.com");          // -> "<svg ...>...</svg>"
-const big = face("ada@example.com", { size: 240, ink: "#222", background: "#f4f1ea" });
+const big = face("ada@example.com", { size: 240, background: "#f4f1ea" });
 ```
+
+Faces come in muted colored inks with occasional colored caps, headphones and blush.
+Pass `color: false` (or a fixed `ink`) for classic black.
+
+### Moods
+
+The same seed keeps its identity — head, hair, nose — but you can change its mood:
+
+![one face, seven moods](moods.png)
+
+```js
+face(user.id, { mood: "grumpy" });   // build failing
+face(user.id, { mood: "happy" });    // build green again
+```
+
+`mood: "auto" | "happy" | "sad" | "grumpy" | "sleepy" | "surprised" | "wink" | "calm"` —
+`auto` (default) picks a resting expression from the seed. Avatars that react to
+state: CI status, error pages, empty inboxes, loading screens.
 
 Drop it anywhere SVG goes:
 
@@ -40,7 +58,9 @@ drawn with a wobbly ink line so it reads as doodled, not generated.
 | option | default | |
 |---|---|---|
 | `size` | `120` | width/height in px |
-| `ink` | `"#1c1b1a"` | stroke color |
+| `mood` | `"auto"` | expression override, identity unchanged |
+| `color` | `true` | muted color palette; `false` = black ink |
+| `ink` | — | force one stroke color (implies `color: false`) |
 | `background` | `"transparent"` | any CSS color |
 
 Determinism note: a given seed is stable within a major version. Grammar improvements
