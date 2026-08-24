@@ -8,6 +8,8 @@
 // they behave differently.
 import { faceParts, seededRng, type FaceParts, type Mood } from "./index.js";
 
+const HERD = new Set<MugShotElement>();
+
 export class MugShotElement extends HTMLElement {
   static observedAttributes = ["seed", "mood", "size", "color", "ink", "idle"];
   #parts!: FaceParts;
@@ -60,9 +62,11 @@ export class MugShotElement extends HTMLElement {
     document.addEventListener("focusin", this.#onFocus);
     this.addEventListener("pointerenter", this.#onEnter);
     this.#loopBlink(); this.#loopGlance(); this.#scheduleIdle(); this.#startBoil();
+    HERD.add(this);
   }
 
   disconnectedCallback() {
+    HERD.delete(this);
     document.removeEventListener("pointermove", this.#onMove);
     document.removeEventListener("keydown", this.#onKey);
     document.removeEventListener("focusin", this.#onFocus);
@@ -97,6 +101,10 @@ export class MugShotElement extends HTMLElement {
     root.querySelector(".wrap")!.appendChild(b);
     this.#saying = true;
     this.#svg?.classList.add("talking");
+    const r0 = this.getBoundingClientRect();
+    for (const o of HERD) {
+      if (o !== this && o.isConnected) o.lookAt([r0.left + r0.width / 2, r0.top + r0.height / 2], 1400 + text.length * 45);
+    }
     let i = 0;
     const tick = () => {
       b.textContent = text.slice(0, ++i);
@@ -108,6 +116,13 @@ export class MugShotElement extends HTMLElement {
       }
     };
     tick();
+  }
+
+  /** Turn the eyes toward a point (client coords) for a moment. */
+  lookAt(target: [number, number], ms = 1500) {
+    this.#glance = target;
+    this.#aim();
+    this.#after(ms, () => { this.#glance = null; this.#aim(); });
   }
 
   get #mood(): Mood {
@@ -209,7 +224,14 @@ export class MugShotElement extends HTMLElement {
     this.#after(idleGap + Math.random() * 3000, () => {
       if (!this.#asleep && performance.now() - this.#lastMove > 2200) {
         const r = this.getBoundingClientRect();
-        this.#glance = [r.left + (Math.random() - 0.5) * 900, r.top + (Math.random() - 0.5) * 700];
+        const others = [...HERD].filter(o => o !== this && o.isConnected);
+        if (others.length && Math.random() < 0.55) {
+          const o = others[Math.floor(Math.random() * others.length)];
+          const or = o.getBoundingClientRect();
+          this.#glance = [or.left + or.width / 2, or.top + or.height / 2];
+        } else {
+          this.#glance = [r.left + (Math.random() - 0.5) * 900, r.top + (Math.random() - 0.5) * 700];
+        }
         this.#aim();
         this.#after(700 + Math.random() * 900, () => { this.#glance = null; this.#aim(); });
       }

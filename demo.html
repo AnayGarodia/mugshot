@@ -25,8 +25,17 @@
       <button data-r="wink">lgtm</button>
     </p>
     <p class="hint">buttons call <code>mug.react(mood)</code> — same face, new feeling</p>
+    <p><button id="pfp">download 512px PNG → use as your GitHub pfp</button></p>
   </div>
 </div>
+<h2 style="margin-top:36px">they know each other</h2>
+<p class="hint">avatars on the same page glance at each other; when one talks, the others turn to look</p>
+<p style="display:flex;gap:18px;align-items:center">
+  <mug-shot seed="pixel" size="110" idle="0" style="width:110px"></mug-shot>
+  <mug-shot seed="olive" size="110" idle="0" style="width:110px"></mug-shot>
+  <mug-shot seed="biscuit" size="110" idle="0" style="width:110px"></mug-shot>
+  <button id="gossip">make one gossip</button>
+</p>
 <h2 style="margin-top:36px">crowds</h2>
 <p class="hint">whole teams, one call: <code>crowd(["ada", "gray", …])</code> — comma-separate names below</p>
 <p><input id="names" style="width:420px" value="ada, grace, alan, edsger, barbara, donald, tony, leslie, margaret, radia, whit"></p>
@@ -45,6 +54,25 @@
     mug.setAttribute("seed", seedEl.value || "mugshot");
     clearTimeout(sayT);
     sayT = setTimeout(() => mug.say("hi, " + (seedEl.value || "stranger") + "!"), 700);
+  });
+  document.getElementById("pfp").addEventListener("click", () => {
+    const svg = face(seedEl.value || "mugshot", { size: 512, background: "#f4f1ea" });
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 512;
+      c.getContext("2d").drawImage(img, 0, 0, 512, 512);
+      const a = document.createElement("a");
+      a.download = "mugshot-" + (seedEl.value || "mugshot") + ".png";
+      a.href = c.toDataURL("image/png");
+      a.click();
+    };
+    img.src = "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+  });
+  const GOSSIP = ["did you see the new deploy?", "psst. the build is green.", "I heard we're famous now", "who touched prod?", "nice hat today"];
+  document.getElementById("gossip").addEventListener("click", () => {
+    const mugs = [...document.querySelectorAll("p mug-shot")];
+    mugs[Math.floor(Math.random() * mugs.length)].say(GOSSIP[Math.floor(Math.random() * GOSSIP.length)]);
   });
   const names = document.getElementById("names");
   const crowdbox = document.getElementById("crowdbox");

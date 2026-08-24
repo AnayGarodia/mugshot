@@ -10,6 +10,7 @@ export interface FaceOptions {
   color?: boolean;      // false = classic black ink, default true
   mood?: Mood;          // override the expression, identity stays put
   paper?: string;       // fill the head with this color (for overlapping scenes)
+  style?: "auto" | "fem" | "masc";  // auto: guess from the seed (name heuristic)
 }
 
 type Rng = () => number; // [0,1)
@@ -91,6 +92,20 @@ function circlePts(cx: number, cy: number, r: number, n = 8): Pt[] {
 
 // ---------- palette ----------
 
+// Common feminine given names (lowercase). Used only to pick a presentation
+// style when the seed looks like a name; override with options.style.
+const FEM = new Set(("ada,grace,barbara,margaret,radia,ana,anna,anne,annie,amy,alice,amelia,abigail,aisha,akari,amara,angela,anita,april,aria,ariana,ashley,astrid,aurora,ava,beatrice,bella,beth,betty,bianca,brenda,briana,bridget,camila,carla,carmen,carol,caroline,carrie,cassandra,catherine,cecilia,celia,chandra,chloe,christina,claire,clara,claudia,cora,daisy,dana,daniela,daphne,deborah,denise,diana,dina,dolores,donna,dora,dorothy,eleanor,elena,eliza,elizabeth,ella,ellen,elsa,emily,emma,erica,esther,eva,evelyn,fatima,fiona,flora,frances,freya,gabriela,gina,giulia,gloria,greta,gwen,hannah,harriet,hazel,heather,heidi,helen,helena,ida,ines,ingrid,irene,iris,isabel,isabella,ivy,jackie,jane,janet,jasmine,jennifer,jessica,jill,joan,joanna,josephine,joy,judith,julia,julie,june,karen,kate,katherine,kathleen,katya,kayla,keiko,kira,kristen,laila,lara,laura,lauren,layla,leah,leila,lena,lila,lily,linda,lisa,livia,lois,lola,lucia,lucy,luna,lydia,mabel,madison,maggie,maki,mara,maria,marie,marina,marta,martha,mary,matilda,maya,megan,mei,melissa,mia,michelle,mina,miriam,molly,monica,nadia,nancy,naomi,natalia,natalie,nia,nicole,nina,noor,nora,olga,olivia,paige,pam,patricia,paula,pearl,penny,phoebe,priya,rachel,rebecca,regina,renee,rita,rosa,rose,ruby,ruth,sadie,sakura,sally,samantha,sandra,sara,sarah,selena,sharon,sheila,shirley,silvia,simone,sofia,sophia,sophie,stella,susan,tanya,tara,teresa,tessa,tina,uma,valentina,valerie,vera,veronica,victoria,violet,wendy,willow,xena,yara,yasmin,yuki,yukiko,zara,zoe,zoya").split(","));
+const MASC = new Set(("joshua,luca,ezra,mustafa,abdulla,krishna,ira,nikita,kanha,mishka,aaron,adam,ahmed,alan,albert,alex,alexander,ali,andre,andrew,andy,anthony,antonio,arthur,austin,ben,benjamin,bernard,bill,bob,brad,brandon,brendan,brian,bruce,bruno,caleb,calvin,carl,carlos,charles,charlie,chris,christian,christopher,colin,connor,craig,dan,daniel,dave,david,dennis,derek,diego,dmitri,dominic,donald,douglas,duncan,dylan,eddie,edgar,edsger,eduardo,edward,eli,elliot,emil,eric,erik,ethan,evan,felix,fernando,francis,frank,fred,gabriel,gary,george,gordon,graham,grant,greg,guido,gustav,harold,harry,hassan,hector,henry,hugo,ian,ibrahim,igor,isaac,ivan,jack,jacob,jake,james,jason,javier,jeff,jeremy,jesse,jim,joe,joel,john,jonathan,jordan,jorge,jose,joseph,josh,juan,julian,justin,karl,keith,ken,kenneth,kevin,kyle,lars,laurence,lee,leo,leon,leonard,levi,liam,linus,louis,lucas,luis,luke,marc,marco,marcus,mario,mark,martin,matt,matthew,max,michael,miguel,mike,nathan,neil,nick,nicolas,noah,oliver,omar,oscar,owen,pablo,patrick,paul,pedro,peter,phil,philip,pierre,quentin,rafael,ralph,raymond,ricardo,richard,rob,robert,roberto,rodrigo,roger,roman,ron,ross,roy,ryan,sam,samuel,scott,sean,sergei,seth,shane,simon,stefan,stephen,steve,steven,stuart,ted,theo,thomas,tim,timothy,toby,tom,tony,travis,trevor,tyler,victor,vincent,vlad,walter,warren,wayne,will,william,xavier,zach,anay,anders,bjarne,dennis,linus,brendan,rasmus,ryan,yukihiro,rich,jose,graydon").split(","));
+
+function looksFem(seed: string, r: Rng): boolean {
+  const name = seed.toLowerCase().split(/[@._\-\s\d+]+/)[0] || "";
+  if (FEM.has(name)) return true;
+  if (MASC.has(name)) return false;
+  if (/(elle|ette|lyn|leen|anne|ita|iko|ina|ella)$/.test(name)) return true;
+  if (/a$/.test(name) && name.length > 3) return true;
+  return chance(r, 0.22); // non-name seeds get a mix
+}
+
 const INKS = ["#1c1b1a", "#1c1b1a", "#1c1b1a", "#1c1b1a", "#2b3a67", "#4a3426", "#2f4a3c"];
 const ACCENTS = ["#b5563f", "#3f5d9e", "#6f8f6a", "#c98a2d", "#8a5a83"];
 const BLUSH = "#d98973";
@@ -103,6 +118,7 @@ export interface FaceParts {
   svg: string;
   ink: string;
   accent: string;
+  style: "fem" | "masc";
   eyes: { left: Pt; right: Pt; r: number; leftOpen: boolean; rightOpen: boolean };
 }
 
@@ -122,6 +138,7 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
   const ink = options.ink ?? (colorOn ? pick(rpal, INKS) : "#1c1b1a");
   const accent = colorOn ? pick(rpal, ACCENTS) : ink;
   const mood: Mood = options.mood ?? "auto";
+  const fem = options.style === "fem" ? true : options.style === "masc" ? false : looksFem(seed, stream(seed, "style"));
   const bg = options.background ?? "transparent";
   const out: Draw[] = [];
   const dots: string[] = [];
@@ -161,9 +178,16 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
   const autoMood = pick(rmood, ["calm", "calm", "happy", "happy", "grumpy", "sleepy", "surprised", "wink"]);
   const m: Exclude<Mood, "auto"> = mood === "auto" ? (autoMood as Exclude<Mood, "auto">) : mood;
 
+  // --- hair kind decided early: long styles cover the ears ---
+  const rha = stream(seed, "hair");
+  const hairKind = fem
+    ? pick(rha, ["long", "long", "bob", "bun", "pony", "curls", "hatch", "solid"])
+    : pick(rha, ["solid", "solid", "hatch", "spiky", "curls", "cap", "bald", "wisps"]);
+  const coversEars = hairKind === "long" || hairKind === "bob";
+
   // --- ears ---
   const re2 = stream(seed, "ears");
-  const hasEars = chance(re2, 0.55);
+  const hasEars = !coversEars && chance(re2, fem ? 0.4 : 0.55);
   const earY = cy + rand(re2, -4, 2);
   if (hasEars) {
     for (const s of [-1, 1]) {
@@ -203,6 +227,14 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
   const winkSide = chance(re, 0.5);
   drawEye(lx, winkSide);
   drawEye(rx2, !winkSide);
+  if (fem && (kind === "dot" || kind === "ring")) {
+    for (const [x, sgn] of [[lx, -1], [rx2, 1]] as [number, number][]) {
+      const bx = x + sgn * (rEye + 1.6);
+      for (let i = 0; i < 2; i++) {
+        out.push({ d: line(re, [bx + sgn * i * 1.4, ey - 0.5 + i * 1.1], [bx + sgn * (2.2 + i * 1.6), ey - 2.2 + i * 0.9], 0.3), width: 1 });
+      }
+    }
+  }
 
   // glasses
   const rg = stream(seed, "glasses");
@@ -310,7 +342,7 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
 
   // --- facial hair ---
   const rf = stream(seed, "fuzz");
-  if (chance(rf, 0.18)) {
+  if (!fem && chance(rf, 0.18)) {
     if (chance(rf, 0.6)) {
       const muY = cy + hh * 0.38;
       out.push({ d: line(rf, [xf - rand(rf, 4, 7), muY], [xf + rand(rf, 4, 7), muY - 0.5], 1), width: rand(rf, 2, 3) });
@@ -326,8 +358,6 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
   // --- hair ---
   let hatchClip = "";
   const hatchLines: string[] = [];
-  const rha = stream(seed, "hair");
-  const hairKind = pick(rha, ["solid", "solid", "hatch", "spiky", "curls", "cap", "bald", "wisps"]);
   const hairInk = colorOn && chance(rha, hairKind === "cap" ? 0.55 : 0.25) ? accent : ink;
   const hairline = cy - hh * rand(rha, 0.22, 0.58);
   if (hairKind === "solid" || hairKind === "cap" || hairKind === "hatch") {
@@ -366,6 +396,69 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
       const bs = turn >= 0 ? 1 : -1;
       out.push({ d: line(rha, [cx + bs * edgeX(by), by], [cx + bs * (edgeX(by) + rand(rha, 5, 9)), by + rand(rha, 0, 2)], 1), width: 2, stroke: hairInk });
     }
+  } else if (hairKind === "long" || hairKind === "bob") {
+    // top mass
+    const yl = hairline;
+    const top: Pt[] = [];
+    for (let i = 0; i <= 8; i++) {
+      const a = Math.PI + (i / 8) * Math.PI;
+      top.push([cx + Math.cos(a) * (hw + 1) * rand(rha, 0.99, 1.06), cy - Math.abs(Math.sin(a)) * (hh + rand(rha, 0.5, 3))]);
+    }
+    top[0] = [cx - edgeX(yl) - 1, yl];
+    top[8] = [cx + edgeX(yl) + 1, yl];
+    const fring: Pt[] = [];
+    const seg2 = pick(rha, [3, 4]);
+    const dip2 = pick(rha, [0, 1, -1]);
+    for (let i = seg2 - 1; i >= 1; i--) {
+      const t = i / seg2;
+      const bx = cx - edgeX(yl) + t * 2 * edgeX(yl);
+      fring.push([bx, yl + 3 + rand(rha, -2, 2) + (dip2 ? Math.sin(t * Math.PI) * dip2 * ((bx - cx) / hw) * 4 : 0)]);
+    }
+    out.push({ d: inkPath(rha, [...top, ...fring.reverse()], { close: true, wobble: 1.1 }), fill: hairInk, stroke: hairInk });
+    // curtains framing the face
+    const endY = hairKind === "bob" ? cy + hh * rand(rha, 0.05, 0.2) : cy + hh * rand(rha, 0.45, 0.7);
+    for (const sC of [-1, 1]) {
+      const topX = cx + sC * edgeX(yl) * 0.96;
+      const curtain: Pt[] = [
+        [topX, yl + 1],
+        [cx + sC * (hw + rand(rha, 3, 6)), cy - hh * 0.15],
+        [cx + sC * (hw + rand(rha, 2, 6)), endY],
+        [cx + sC * (hw - rand(rha, 3, 6)), endY + rand(rha, 3, 6) * (hairKind === "bob" ? 0.5 : 1)],
+        [cx + sC * edgeX((yl + endY) / 2) * 0.98, (yl + endY) / 2 + 4],
+      ];
+      out.push({ d: inkPath(rha, curtain, { close: true, wobble: 1 }), fill: hairInk, stroke: hairInk });
+    }
+  } else if (hairKind === "bun" || hairKind === "pony") {
+    // solid cap mass
+    const yl = hairline;
+    const top: Pt[] = [];
+    for (let i = 0; i <= 8; i++) {
+      const a = Math.PI + (i / 8) * Math.PI;
+      top.push([cx + Math.cos(a) * (hw + 0.5) * rand(rha, 0.98, 1.04), cy - Math.abs(Math.sin(a)) * (hh + rand(rha, 0, 2))]);
+    }
+    top[0] = [cx - edgeX(yl), yl];
+    top[8] = [cx + edgeX(yl), yl];
+    const back2: Pt[] = [];
+    for (let i = 3; i >= 1; i--) {
+      const t = i / 4;
+      back2.push([cx - edgeX(yl) + t * 2 * edgeX(yl), yl + 3 + rand(rha, -2, 2)]);
+    }
+    out.push({ d: inkPath(rha, [...top, ...back2.reverse()], { close: true, wobble: 1.1 }), fill: hairInk, stroke: hairInk });
+    if (hairKind === "bun") {
+      const bx = cx + rand(rha, -8, 8), by = cy - hh - rand(rha, 2, 5);
+      out.push({ d: inkPath(rha, circlePts(bx, by, rand(rha, 5, 8)), { close: true, wobble: 1 }), fill: hairInk, stroke: hairInk });
+    } else {
+      const sP = chance(rha, 0.5) ? -1 : 1;
+      const bx = cx + sP * hw * 0.8, by = cy - hh * 0.8;
+      const tail: Pt[] = [
+        [bx, by],
+        [cx + sP * (hw + rand(rha, 7, 11)), cy - hh * rand(rha, 0.1, 0.35)],
+        [cx + sP * (hw + rand(rha, 3, 8)), cy + hh * rand(rha, 0.3, 0.55)],
+        [cx + sP * (hw + 1), cy + hh * 0.2],
+        [cx + sP * (hw * 0.95), cy - hh * 0.4],
+      ];
+      out.push({ d: inkPath(rha, tail, { close: true, wobble: 1 }), fill: hairInk, stroke: hairInk });
+    }
   } else if (hairKind === "spiky") {
     const nSpikes = Math.floor(rand(rha, 6, 10));
     for (let i = 0; i < nSpikes; i++) {
@@ -396,7 +489,9 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
 
   // --- extras: headphones, top hat, earring ---
   const rx3 = stream(seed, "extras");
-  const extra = pick(rx3, ["none", "none", "none", "none", "none", "none", "headphones", "tophat", "earring"]);
+  const extra = fem
+    ? pick(rx3, ["none", "none", "none", "none", "earring", "earring", "headphones", "flower"])
+    : pick(rx3, ["none", "none", "none", "none", "none", "none", "headphones", "tophat", "earring"]);
   if (extra === "headphones" && hairKind !== "cap") {
     const hInk = colorOn ? accent : ink;
     const bandPts: Pt[] = [];
@@ -415,7 +510,15 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
     const bw2 = hw * rand(rx3, 0.55, 0.68), ht = rand(rx3, 14, 20);
     out.push({ d: inkPath(rx3, [[cx - bw2, topY + 2], [cx - bw2 + rand(rx3, -1.5, 1.5), topY - ht], [cx + bw2 + rand(rx3, -1.5, 1.5), topY - ht], [cx + bw2, topY + 2]], { close: true, wobble: 0.9 }), fill: hInk, stroke: hInk });
     out.push({ d: line(rx3, [cx - bw2 - rand(rx3, 4, 7), topY + 3], [cx + bw2 + rand(rx3, 4, 7), topY + 2.5], 0.8), width: 2, stroke: hInk });
-  } else if (extra === "earring" && hasEars) {
+  } else if (extra === "flower") {
+    const sF = chance(rx3, 0.5) ? -1 : 1;
+    const fx = cx + sF * hw * 0.72, fy = cy - hh * 0.72;
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      out.push({ d: inkPath(rx3, circlePts(fx + Math.cos(a) * 2.6, fy + Math.sin(a) * 2.6, 1.7, 6), { close: true, wobble: 0.3 }), width: 1, stroke: colorOn ? accent : ink });
+    }
+    dots.push(`<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="1.3"${colorOn ? ` fill="${accent}"` : ""}/>`);
+  } else if (extra === "earring" && (hasEars || fem)) {
     const s = turn > 0.5 ? -1 : turn < -0.5 ? 1 : (chance(rx3, 0.5) ? -1 : 1);
     const px = cx + s * edgeX(earY);
     dots.push(`<circle cx="${(px + s * 1.2).toFixed(1)}" cy="${(earY + 5.6).toFixed(1)}" r="1.1"${colorOn ? ` fill="${accent}"` : ""}/>`);
@@ -445,7 +548,7 @@ function build(seed: string, options: FaceOptions = {}): FaceParts {
     `<g fill="${ink}">${dots.join("")}</g>` +
     `<g data-mug="pupils" fill="${ink}">${pupils.join("")}</g></svg>`;
   return {
-    svg, ink, accent,
+    svg, ink, accent, style: fem ? "fem" : "masc",
     eyes: {
       left: [lx, ey], right: [rx2, ey], r: rEye,
       leftOpen: kind !== "sleepy" && !(kind === "wink" && winkSide),

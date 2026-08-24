@@ -45,20 +45,26 @@ function person(seed: string, colorOn: boolean, paper = "#f4f1ea"): string {
   // ground scribble
   path(wob(rb, [[cxp - 18, 182], [cxp - 4, 183.5], [cxp + 9, 182], [cxp + 19, 183]], false, 0.6), { w: 1, op: 0.3 });
 
-  // legs + feet (short, slightly splayed)
+  // legs + feet (short, slightly splayed) — drawn before the torso/dress
   const spread = rand(rb, 4, 7);
   path(wob(rb, [[cxp - spread, hipY - 2], [cxp - spread - rand(rb, 0, 2), legY]], false, 0.6), { w: 1.8 });
   path(wob(rb, [[cxp + spread, hipY - 2], [cxp + spread + rand(rb, 0, 2), legY]], false, 0.6), { w: 1.8 });
   path(wob(rb, [[cxp - spread - 1, legY], [cxp - spread - 8, legY + 1.5]], false, 0.4), { w: 1.6 });
   path(wob(rb, [[cxp + spread + 1, legY], [cxp + spread + 8, legY + 1.5]], false, 0.4), { w: 1.6 });
 
-  // torso: soft sack, rounded at the hips
+  // torso: soft sack (or a dress), rounded at the hips
+  const isDress = fp.style === "fem" && chance(rb, 0.55);
   const style = pick(rb, ["plain", "plain", "fill", "stripes", "fill"]);
-  const torso = wob(rb, [
-    [cxp - half * 0.7, shY], [cxp - half, shY + 14], [cxp - half * 0.95, hipY - 8],
-    [cxp - half * 0.6, hipY], [cxp + half * 0.6, hipY], [cxp + half * 0.95, hipY - 8],
-    [cxp + half, shY + 14], [cxp + half * 0.7, shY],
-  ], true, 1.1);
+  const torso = isDress
+    ? wob(rb, [
+        [cxp - half * 0.6, shY], [cxp - half * 0.75, shY + 16], [cxp - half * 1.35, hipY + 4],
+        [cxp + half * 1.35, hipY + 4], [cxp + half * 0.75, shY + 16], [cxp + half * 0.6, shY],
+      ], true, 1.1)
+    : wob(rb, [
+        [cxp - half * 0.7, shY], [cxp - half, shY + 14], [cxp - half * 0.95, hipY - 8],
+        [cxp - half * 0.6, hipY], [cxp + half * 0.6, hipY], [cxp + half * 0.95, hipY - 8],
+        [cxp + half, shY + 14], [cxp + half * 0.7, shY],
+      ], true, 1.1);
   path(torso, { fill: style === "fill" ? accent : paper });
   if (style === "stripes") {
     for (let y = shY + 10; y < hipY - 5; y += rand(rb, 6.5, 9)) {
@@ -67,7 +73,7 @@ function person(seed: string, colorOn: boolean, paper = "#f4f1ea"): string {
   }
 
   // arms: short and stubby, from the shoulder curve
-  const pose = pick(rb, ["down", "down", "wave", "pockets", "crossed", "coffee"]);
+  const pose = pick(rb, ["down", "down", "wave", "pockets", "crossed", "coffee", "point", "hips", "phone"]);
   const shL: Pt = [cxp - half * 0.9, shY + 8], shR: Pt = [cxp + half * 0.9, shY + 8];
   const mitt = (x: number, y: number) => P.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="none" stroke="${ink}" stroke-width="1.4"/>`);
   const armDown = (sh: Pt, dir: number) => {
@@ -87,6 +93,19 @@ function person(seed: string, colorOn: boolean, paper = "#f4f1ea"): string {
   } else if (pose === "crossed") {
     path(wob(rb, [shL, [shL[0] - 2, shY + 14], [cxp + 3, shY + 19], [shR[0] - 4, shY + 17]], false, 0.6), { w: 1.7 });
     path(wob(rb, [shR, [shR[0] + 2, shY + 20], [cxp - 3, shY + 26], [shL[0] + 4, shY + 24]], false, 0.6), { w: 1.7 });
+  } else if (pose === "point") {
+    armDown(shL, -1);
+    const hx = shR[0] + rand(rb, 16, 20), hy = shY + rand(rb, -4, 2);
+    path(wob(rb, [shR, [shR[0] + 9, shY + 2], [hx, hy]], false, 0.6), { w: 1.7 });
+    path(wob(rb, [[hx, hy], [hx + 4.5, hy - 1.5]], false, 0.3), { w: 1.4 });
+  } else if (pose === "hips") {
+    path(wob(rb, [shL, [shL[0] - rand(rb, 7, 9), shY + 15], [cxp - half * 0.8, shY + 28]], false, 0.6), { w: 1.7 });
+    path(wob(rb, [shR, [shR[0] + rand(rb, 7, 9), shY + 15], [cxp + half * 0.8, shY + 28]], false, 0.6), { w: 1.7 });
+  } else if (pose === "phone") {
+    armDown(shL, -1);
+    const px2 = shR[0] + rand(rb, 3, 5), py2 = shY - rand(rb, 8, 12);
+    path(wob(rb, [shR, [shR[0] + 7, shY + 6], [px2 + 3, py2 + 8]], false, 0.6), { w: 1.7 });
+    P.push(`<rect x="${px2.toFixed(1)}" y="${(py2 - 4).toFixed(1)}" width="5" height="9.5" rx="1" fill="${paper}" stroke="${ink}" stroke-width="1.2"/>`);
   } else if (pose === "coffee") {
     armDown(shL, -1);
     const hx = shR[0] + rand(rb, 5, 8), hy = shY + rand(rb, 14, 18);

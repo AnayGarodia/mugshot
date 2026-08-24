@@ -65,6 +65,8 @@ It's not an image, it's a character:
 - **temperament** — derived from the seed: jumpy ones startle at fast cursors
   and double-blink, social ones smile when hovered, dreamy ones daydream more.
   Two seeds don't just look different, they behave differently.
+- **they know each other** — multiple `<mug-shot>`s on one page glance at each
+  other, and when one talks the rest turn to look
 - **it talks**:
 
 ```js
@@ -76,6 +78,21 @@ mug.react("happy");    // build green
 
 Attributes: `seed`, `mood`, `size`, `color`, `ink`, `idle`. All reactive.
 Respects `prefers-reduced-motion`.
+
+## Names draw themselves
+
+Seeds that look like names pick a matching presentation — `face("ada")` gets a
+bob, lashes, maybe a flower; `face("alan")` gets a flat cap. Not a name? The
+seed decides. Override anytime with `style: "fem" | "masc"`.
+
+## Your GitHub pfp
+
+The demo has a one-click "download 512px PNG" button — upload it at
+github.com/settings/profile. Or from code:
+
+```js
+img.src = "data:image/svg+xml;utf8," + encodeURIComponent(face("yourname", { size: 512 }));
+```
 
 ## Crowds
 
