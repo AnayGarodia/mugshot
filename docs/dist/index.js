@@ -335,12 +335,12 @@ function build(seed, options = {}) {
         m === "sad" || m === "grumpy" ? (chance(rm, 0.4) ? "line" : "frown") :
             m === "surprised" ? "o" :
                 m === "wink" ? "smirk" :
-                    m === "sleepy" ? (chance(rm, 0.5) ? "line" : "o") :
+                    m === "sleepy" ? (chance(rm, 0.78) ? "line" : "o") :
                         seedMouth;
     const mx = xf + rand(rm, -1, 1);
     if (mk === "o") {
-        const orr = m === "surprised" ? rand(rm, 2.4, 3.6) : rand(rm, 1.5, 2.8);
-        out.push({ tag: "mouth", d: inkPath(rm, circlePts(mx, my, orr), { close: true, wobble: 0.5 }), width: 1.3 });
+        const orr = m === "surprised" ? rand(rm, 2.6, 3.8) : rand(rm, 1.9, 2.9);
+        out.push({ tag: "mouth", d: inkPath(rm, circlePts(mx, my, orr, 12), { close: true, wobble: 0.25 }), width: 1.2, fill: ink });
     }
     else if (mk === "smirk") {
         out.push({ tag: "mouth", d: inkPath(rm, [[mx - mw, my], [mx + mw * 0.3, my + 1], [mx + mw, my - rand(rm, 1.5, 3)]], { wobble: 0.6 }) });
@@ -493,24 +493,34 @@ function build(seed, options = {}) {
         }
     }
     else if (hairKind === "curls") {
-        // scalloped cloud hugging the skull, filled — reads as curly hair
+        // scalloped silhouette hugging the skull; fem gets curly-bob side volume
         const yl = hairline;
-        const cloud = [[cx - edgeX(yl) - 1.5, yl + 1]];
-        const bumps = Math.floor(rand(rha, 6, 8));
+        const sideDrop = fem ? cy + hh * rand(rha, 0.15, 0.35) : yl + 2;
+        const pts2 = [];
+        // left side rising: from side-drop up the left edge
+        pts2.push([cx - edgeX(sideDrop) - (fem ? rand(rha, 4, 7) : 1.5), sideDrop]);
+        const bumps = Math.floor(rand(rha, 7, 9));
         for (let i = 0; i <= bumps; i++) {
-            const a = Math.PI + ((i + 0.5) / (bumps + 1)) * Math.PI;
-            const rr = 1 + rand(rha, 0.1, 0.24); // bump amplitude
-            cloud.push([cx + Math.cos(a) * hw * rr, cy - Math.abs(Math.sin(a)) * (hh + rand(rha, 3, 7))]);
-            const a2 = Math.PI + ((i + 1) / (bumps + 1)) * Math.PI;
-            cloud.push([cx + Math.cos(a2) * hw * 1.0, cy - Math.abs(Math.sin(a2)) * (hh + 0.5)]);
+            const a = Math.PI + (i / bumps) * Math.PI;
+            const amp = 1 + (i % 2 === 0 ? rand(rha, 0.1, 0.17) : rand(rha, 0.01, 0.05)); // alternating lobes
+            pts2.push([cx + Math.cos(a) * hw * amp, cy - Math.abs(Math.sin(a)) * (hh + (i % 2 === 0 ? rand(rha, 3, 6) : 0.5))]);
         }
-        cloud.push([cx + edgeX(yl) + 1.5, yl + 1]);
-        const back3 = [];
-        for (let i = 3; i >= 1; i--) {
-            const t = i / 4;
-            back3.push([cx - edgeX(yl) + t * 2 * edgeX(yl), yl + 3.5 + rand(rha, -2, 2)]);
+        pts2.push([cx + edgeX(sideDrop) + (fem ? rand(rha, 4, 7) : 1.5), sideDrop]);
+        if (fem) {
+            // tuck back in under the curls at cheek level
+            pts2.push([cx + edgeX(sideDrop) * 0.9, sideDrop + 3]);
         }
-        out.push({ d: inkPath(rha, [...cloud, ...back3.reverse()], { close: true, wobble: 1.3 }), fill: hairInk, stroke: hairInk });
+        // scalloped fringe back across the forehead (dips, never a flat brim)
+        const seg3 = 4;
+        for (let i = seg3; i >= 0; i--) {
+            const t = i / seg3;
+            const bx = cx - edgeX(yl) + (1 - t) * 0 + t * 2 * edgeX(yl); // right to left
+            const dip = (i % 2 === 0 ? rand(rha, 3.5, 5.5) : rand(rha, 0.5, 1.5));
+            pts2.push([bx, yl + dip]);
+        }
+        if (fem)
+            pts2.push([cx - edgeX(sideDrop) * 0.9, sideDrop + 3]);
+        out.push({ d: inkPath(rha, pts2, { close: true, wobble: 1.2 }), fill: hairInk, stroke: hairInk });
     }
     else if (hairKind === "wisps") {
         for (let i = 0; i < 3; i++) {
