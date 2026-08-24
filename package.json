@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsc",
     "grid": "tsx scripts/grid.ts",
-    "test": "tsx scripts/test.ts"
+    "test": "tsx scripts/test.ts",
+    "prepublishOnly": "npm run build && npm test"
   },
   "license": "MIT",
   "devDependencies": {
@@ -32,5 +33,9 @@
     ".": "./dist/index.js",
     "./element": "./dist/element.js",
     "./crowd": "./dist/crowd.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AnayGarodia/mugshot"
   }
 }
